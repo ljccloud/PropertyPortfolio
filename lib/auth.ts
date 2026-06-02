@@ -10,7 +10,7 @@ export const authOptions: AuthOptions = {
         params: {
           scope: 'openid email profile https://www.googleapis.com/auth/drive',
           access_type: 'offline',
-          prompt: 'consent',
+          prompt: 'select_account',
         },
       },
     }),
