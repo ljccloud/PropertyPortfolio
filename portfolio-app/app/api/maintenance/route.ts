@@ -1,0 +1,99 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@/lib/auth';
+import { getDriveClient, getDataFolderId, readJsonFile, writeJsonFile } from '@/lib/drive';
+import { MaintenanceIssue } from '@/types';
+import { v4 as uuid } from 'uuid';
+
+async function getIssues(accessToken: string): Promise<MaintenanceIssue[]> {
+  const drive = getDriveClient(accessToken);
+  const folderId = await getDataFolderId(drive);
+  const data = await readJsonFile<MaintenanceIssue[]>(drive, 'maintenance.json', folderId);
+  return data || [];
+}
+
+export async function GET(req: NextRequest) {
+  const session = await auth();
+  if (!session?.accessToken) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  try {
+    const issues = await getIssues(session.accessToken);
+    const { searchParams } = new URL(req.url);
+    const propertyId = searchParams.get('propertyId');
+    const filtered = propertyId ? issues.filter(i => i.propertyId === propertyId) : issues;
+    return NextResponse.json({ data: filtered });
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
+}
+
+export async function POST(req: NextRequest) {
+  const session = await auth();
+  if (!session?.accessToken) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  try {
+    const body = await req.json();
+    const drive = getDriveClient(session.accessToken);
+    const folderId = await getDataFolderId(drive);
+    const issues = await getIssues(session.accessToken);
+
+    const newIssue: MaintenanceIssue = {
+      id: uuid(),
+      ...body,
+      status: body.dateResolved ? 'Closed' : 'Open',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    issues.push(newIssue);
+    await writeJsonFile(drive, 'maintenance.json', folderId, issues);
+    return NextResponse.json({ data: newIssue });
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
+}
+
+export async function PUT(req: NextRequest) {
+  const session = await auth();
+  if (!session?.accessToken) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  try {
+    const body = await req.json();
+    const { id, ...updates } = body;
+    const drive = getDriveClient(session.accessToken);
+    const folderId = await getDataFolderId(drive);
+    const issues = await getIssues(session.accessToken);
+
+    const idx = issues.findIndex(i => i.id === id);
+    if (idx === -1) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+    const updated = {
+      ...issues[idx],
+      ...updates,
+      id,
+      status: (updates.dateResolved || issues[idx].dateResolved) ? 'Closed' : 'Open' as any,
+      updatedAt: new Date().toISOString(),
+    };
+    issues[idx] = updated;
+    await writeJsonFile(drive, 'maintenance.json', folderId, issues);
+    return NextResponse.json({ data: updated });
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  const session = await auth();
+  if (!session?.accessToken) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  try {
+    const { id } = await req.json();
+    const drive = getDriveClient(session.accessToken);
+    const folderId = await getDataFolderId(drive);
+    const issues = await getIssues(session.accessToken);
+    const filtered = issues.filter(i => i.id !== id);
+    await writeJsonFile(drive, 'maintenance.json', folderId, filtered);
+    return NextResponse.json({ data: { deleted: true } });
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
+}
