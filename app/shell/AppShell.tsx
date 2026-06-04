@@ -105,6 +105,12 @@ export default function AppShell() {
   const [maintenance, setMaintenance] = useState<MaintenanceIssue[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState<{ msg: string; type: 'error' | 'success' } | null>(null);
+
+  function showToast(msg: string, type: 'error' | 'success' = 'success') {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3500);
+  }
 
   // UI state
   const [screen, setScreen] = useState('dashboard');
@@ -132,6 +138,13 @@ export default function AppShell() {
       setMaintenance(m.data || []);
       setDocuments(d.data || []);
       setLoading(false);
+      // Check for Drive access error
+      if (p.error?.includes('401') || p.error?.includes('Unauthorized')) {
+        showToast('Google Drive access error — please sign out and sign in again', 'error');
+      }
+    }).catch(() => {
+      setLoading(false);
+      showToast('Failed to load data — check your connection', 'error');
     });
   }, [session]);
 
@@ -162,14 +175,22 @@ export default function AppShell() {
   // ─── API ──────────────────────────────────────────────────────────────────────
   async function saveProperty(data: any) {
     const isNew = !data.id;
-    const res = await fetch(isNew ? '/api/properties' : `/api/properties/${data.id}`, {
-      method: isNew ? 'POST' : 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    const { data: saved } = await res.json();
-    setProperties(ps => isNew ? [...ps, saved] : ps.map(p => p.id === saved.id ? saved : p));
-    return saved;
+    try {
+      const res = await fetch(isNew ? '/api/properties' : `/api/properties/${data.id}`, {
+        method: isNew ? 'POST' : 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) throw new Error(json.error || `HTTP ${res.status}`);
+      const saved = json.data;
+      setProperties(ps => isNew ? [...ps, saved] : ps.map(p => p.id === saved.id ? saved : p));
+      showToast(isNew ? 'Property added' : 'Property saved');
+      return saved;
+    } catch (e: any) {
+      showToast(`Failed to save property: ${e.message}`, 'error');
+      throw e;
+    }
   }
 
   async function savePropertyPatch(propId: string, patch: Partial<Property>) {
@@ -180,13 +201,21 @@ export default function AppShell() {
 
   async function saveTxn(data: any) {
     const isNew = !data.id;
-    const res = await fetch('/api/finance', {
-      method: isNew ? 'POST' : 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    const { data: saved } = await res.json();
-    setTransactions(ts => isNew ? [...ts, saved] : ts.map(t => t.id === saved.id ? saved : t));
+    try {
+      const res = await fetch('/api/finance', {
+        method: isNew ? 'POST' : 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) throw new Error(json.error || `HTTP ${res.status}`);
+      const saved = json.data;
+      setTransactions(ts => isNew ? [...ts, saved] : ts.map(t => t.id === saved.id ? saved : t));
+      showToast('Transaction saved');
+    } catch (e: any) {
+      showToast(`Failed to save transaction: ${e.message}`, 'error');
+      throw e;
+    }
   }
 
   async function deleteTxn(id: string) {
@@ -196,13 +225,21 @@ export default function AppShell() {
 
   async function saveMaint(data: any) {
     const isNew = !data.id;
-    const res = await fetch('/api/maintenance', {
-      method: isNew ? 'POST' : 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(isNew ? data : { id: data.id, ...data }),
-    });
-    const { data: saved } = await res.json();
-    setMaintenance(ms => isNew ? [...ms, saved] : ms.map(m => m.id === saved.id ? saved : m));
+    try {
+      const res = await fetch('/api/maintenance', {
+        method: isNew ? 'POST' : 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(isNew ? data : { id: data.id, ...data }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) throw new Error(json.error || `HTTP ${res.status}`);
+      const saved = json.data;
+      setMaintenance(ms => isNew ? [...ms, saved] : ms.map(m => m.id === saved.id ? saved : m));
+      showToast('Issue saved');
+    } catch (e: any) {
+      showToast(`Failed to save issue: ${e.message}`, 'error');
+      throw e;
+    }
   }
 
   async function deleteMaint(id: string) {
@@ -211,9 +248,16 @@ export default function AppShell() {
   }
 
   async function uploadDoc(formData: FormData) {
-    const res = await fetch('/api/documents/upload', { method: 'POST', body: formData });
-    const { data } = await res.json();
-    if (data) setDocuments(ds => [...ds, data]);
+    try {
+      const res = await fetch('/api/documents/upload', { method: 'POST', body: formData });
+      const json = await res.json();
+      if (!res.ok || json.error) throw new Error(json.error || `HTTP ${res.status}`);
+      if (json.data) setDocuments(ds => [...ds, json.data]);
+      showToast('Document uploaded');
+    } catch (e: any) {
+      showToast(`Upload failed: ${e.message}`, 'error');
+      throw e;
+    }
   }
 
   async function deleteDoc(id: string) {
@@ -779,6 +823,22 @@ export default function AppShell() {
       {modal?.type === 'editAgent' && <AgentModal property={modal.property} onSave={patch => savePropertyPatch(modal.property.id, patch)} onClose={() => setModal(null)} />}
       {modal?.type === 'addRentHistory' && <RentHistoryModal property={modal.property} onSave={patch => savePropertyPatch(modal.property.id, patch)} onClose={() => setModal(null)} />}
       {modal?.type === 'addContact' && <ContactModal property={modal.property} onSave={patch => savePropertyPatch(modal.property.id, patch)} onClose={() => setModal(null)} />}
+
+      {/* Toast notification */}
+      {toast && (
+        <div style={{
+          position: 'fixed', bottom: 'calc(var(--nav-h) + 12px)', left: '50%',
+          transform: 'translateX(-50%)', zIndex: 500,
+          background: toast.type === 'error' ? 'var(--red-bg)' : 'var(--surface)',
+          color: toast.type === 'error' ? 'var(--red)' : 'var(--text2)',
+          border: `1px solid ${toast.type === 'error' ? '#E8A0A0' : 'var(--border)'}`,
+          borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 500,
+          boxShadow: '0 2px 12px rgba(0,0,0,0.1)', whiteSpace: 'nowrap',
+          pointerEvents: 'none',
+        }}>
+          {toast.msg}
+        </div>
+      )}
 
       {/* Bottom nav */}
       <nav style={{ height: 'var(--nav-h)', background: 'var(--surface)', borderTop: '1px solid var(--border)', display: 'flex', flexShrink: 0, paddingBottom: 'env(safe-area-inset-bottom)' }}>

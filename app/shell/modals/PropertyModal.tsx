@@ -43,17 +43,22 @@ export default function PropertyModal({ property, onSave, onClose }: Props) {
   async function handleSave() {
     if (!form.address.trim()) return;
     setSaving(true);
-    await onSave({
-      ...(isEdit ? { id: property!.id } : {}),
-      ...form,
-      purchasePrice: form.purchasePrice ? Number(form.purchasePrice) : undefined,
-      currentValue: form.currentValue ? Number(form.currentValue) : undefined,
-      owners: form.owners.map(o => ({ ...o, percentage: Number(o.percentage) })),
-      rentHistory: property?.rentHistory || [],
-      keyContacts: property?.keyContacts || [],
-    });
-    setSaving(false);
-    onClose();
+    try {
+      await onSave({
+        ...(isEdit ? { id: property!.id } : {}),
+        ...form,
+        purchasePrice: form.purchasePrice ? Number(form.purchasePrice) : undefined,
+        currentValue: form.currentValue ? Number(form.currentValue) : undefined,
+        owners: form.owners.map(o => ({ ...o, percentage: Number(o.percentage) })),
+        rentHistory: property?.rentHistory || [],
+        keyContacts: property?.keyContacts || [],
+      });
+      onClose();
+    } catch {
+      // error already shown via toast in AppShell
+    } finally {
+      setSaving(false);
+    }
   }
 
   const ownerTotal = form.owners.reduce((s, o) => s + Number(o.percentage), 0);

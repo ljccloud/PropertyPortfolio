@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { getDriveClient, getDataFolderId, readJsonFile, writeJsonFile } from '@/lib/drive';
 import { Property } from '@/types';
 import { v4 as uuid } from 'uuid';
+
+async function getSession() {
+  const session = await getServerSession(authOptions);
+  return session as (typeof session & { accessToken?: string }) | null;
+}
 
 async function getProperties(accessToken: string): Promise<Property[]> {
   const drive = getDriveClient(accessToken);
@@ -12,21 +18,24 @@ async function getProperties(accessToken: string): Promise<Property[]> {
 }
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.accessToken) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
+  const session = await getSession();
+  if (!session?.accessToken) {
+    return NextResponse.json({ error: 'Unauthorized — please sign out and sign in again' }, { status: 401 });
+  }
   try {
     const properties = await getProperties(session.accessToken);
     return NextResponse.json({ data: properties });
   } catch (e: any) {
+    console.error('GET /api/properties error:', e.message);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.accessToken) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
+  const session = await getSession();
+  if (!session?.accessToken) {
+    return NextResponse.json({ error: 'Unauthorized — please sign out and sign in again' }, { status: 401 });
+  }
   try {
     const body = await req.json();
     const drive = getDriveClient(session.accessToken);
@@ -35,10 +44,16 @@ export async function POST(req: NextRequest) {
 
     const newProperty: Property = {
       id: uuid(),
-      ...body,
+      address: body.address,
+      reference: body.reference,
+      purchasePrice: body.purchasePrice,
+      purchaseDate: body.purchaseDate,
+      currentValue: body.currentValue,
+      owners: body.owners || [],
+      tenant: body.tenant,
+      lettingAgent: body.lettingAgent,
       rentHistory: body.rentHistory || [],
       keyContacts: body.keyContacts || [],
-      owners: body.owners || [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -47,6 +62,7 @@ export async function POST(req: NextRequest) {
     await writeJsonFile(drive, 'properties.json', folderId, properties);
     return NextResponse.json({ data: newProperty });
   } catch (e: any) {
+    console.error('POST /api/properties error:', e.message);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

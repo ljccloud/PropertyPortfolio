@@ -33,17 +33,18 @@ export default function MaintenanceModal({ properties, issue, defaultPropertyId,
   async function handleSave() {
     if (!form.propertyId || !form.issue.trim()) return;
     setSaving(true);
-    const prop = properties.find(p => p.id === form.propertyId);
-    await onSave({
-      ...(isEdit ? { id: issue!.id } : {}),
-      ...form,
-      propertyAddress: prop?.address || '',
-      costToResolve: form.costToResolve ? Number(form.costToResolve) : undefined,
-      dateResolved: form.dateResolved || undefined,
-      status: form.dateResolved ? 'Closed' : 'Open',
-    });
-    setSaving(false);
-    onClose();
+    try {
+      const prop = properties.find(p => p.id === form.propertyId);
+      await onSave({
+        ...(isEdit ? { id: issue!.id } : {}),
+        ...form,
+        propertyAddress: prop?.address || '',
+        costToResolve: form.costToResolve ? Number(form.costToResolve) : undefined,
+        dateResolved: form.dateResolved || undefined,
+        status: form.dateResolved ? 'Closed' : 'Open',
+      });
+      onClose();
+    } catch { /* error shown via toast */ } finally { setSaving(false); }
   }
 
   return (

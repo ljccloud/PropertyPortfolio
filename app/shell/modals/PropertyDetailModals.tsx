@@ -30,20 +30,21 @@ export function TenantModal({ property, onSave, onClose }: TenantProps) {
 
   async function handleSave() {
     setSaving(true);
-    await onSave({
-      tenant: {
-        id: t?.id || uid(),
-        name: form.name,
-        email: form.email,
-        phone: form.phone,
-        leaseStart: form.leaseStart,
-        leaseEnd: form.leaseEnd || undefined,
-        deposit: Number(form.deposit) || 0,
-        rentPcm: Number(form.rentPcm) || 0,
-      }
-    });
-    setSaving(false);
-    onClose();
+    try {
+      await onSave({
+        tenant: {
+          id: t?.id || uid(),
+          name: form.name,
+          email: form.email,
+          phone: form.phone,
+          leaseStart: form.leaseStart,
+          leaseEnd: form.leaseEnd || undefined,
+          deposit: Number(form.deposit) || 0,
+          rentPcm: Number(form.rentPcm) || 0,
+        }
+      });
+      onClose();
+    } catch {} finally { setSaving(false); }
   }
 
   return (
@@ -105,9 +106,7 @@ export function AgentModal({ property, onSave, onClose }: AgentProps) {
 
   async function handleSave() {
     setSaving(true);
-    await onSave({ lettingAgent: form });
-    setSaving(false);
-    onClose();
+    try { await onSave({ lettingAgent: form }); onClose(); } catch {} finally { setSaving(false); }
   }
 
   return (
@@ -153,14 +152,15 @@ export function RentHistoryModal({ property, onSave, onClose }: RentHistoryProps
   async function handleSave() {
     if (!form.amount || !form.dateFrom) return;
     setSaving(true);
-    await onSave({
-      rentHistory: [
-        ...property.rentHistory,
-        { id: uid(), dateFrom: form.dateFrom, dateTo: form.dateTo || undefined, amount: Number(form.amount), notes: form.notes || undefined },
-      ]
-    });
-    setSaving(false);
-    onClose();
+    try {
+      await onSave({
+        rentHistory: [
+          ...property.rentHistory,
+          { id: uid(), dateFrom: form.dateFrom, dateTo: form.dateTo || undefined, amount: Number(form.amount), notes: form.notes || undefined },
+        ]
+      });
+      onClose();
+    } catch {} finally { setSaving(false); }
   }
 
   return (
@@ -203,11 +203,12 @@ export function ContactModal({ property, onSave, onClose }: ContactProps) {
   async function handleSave() {
     if (!form.name.trim()) return;
     setSaving(true);
-    await onSave({
-      keyContacts: [...property.keyContacts, { id: uid(), ...form }]
-    });
-    setSaving(false);
-    onClose();
+    try {
+      await onSave({
+        keyContacts: [...property.keyContacts, { id: uid(), ...form }]
+      });
+      onClose();
+    } catch {} finally { setSaving(false); }
   }
 
   return (

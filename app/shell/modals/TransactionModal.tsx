@@ -56,16 +56,17 @@ export default function TransactionModal({ properties, transaction, defaultPrope
   async function handleSave() {
     if (!form.propertyId || !form.amount) return;
     setSaving(true);
-    const prop = properties.find(p => p.id === form.propertyId);
-    await onSave({
-      ...(isEdit ? { id: transaction!.id } : {}),
-      ...form,
-      propertyAddress: prop?.address || '',
-      amount: Number(form.amount),
-      dateEnd: form.dateEnd || undefined,
-    });
-    setSaving(false);
-    onClose();
+    try {
+      const prop = properties.find(p => p.id === form.propertyId);
+      await onSave({
+        ...(isEdit ? { id: transaction!.id } : {}),
+        ...form,
+        propertyAddress: prop?.address || '',
+        amount: Number(form.amount),
+        dateEnd: form.dateEnd || undefined,
+      });
+      onClose();
+    } catch { /* error shown via toast */ } finally { setSaving(false); }
   }
 
   const cats = form.type === 'income' ? INCOME_CATS : EXPENSE_CATS;

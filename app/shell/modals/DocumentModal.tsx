@@ -48,13 +48,14 @@ export default function DocumentModal({ properties, defaultPropertyId, onUpload,
   async function handleUpload() {
     if (!file || !form.propertyId || !form.description.trim()) return;
     setUploading(true);
-    const prop = properties.find(p => p.id === form.propertyId);
-    const fd = new FormData();
-    fd.append('file', file);
-    fd.append('metadata', JSON.stringify({ ...form, propertyAddress: prop?.address || '' }));
-    await onUpload(fd);
-    setUploading(false);
-    onClose();
+    try {
+      const prop = properties.find(p => p.id === form.propertyId);
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('metadata', JSON.stringify({ ...form, propertyAddress: prop?.address || '' }));
+      await onUpload(fd);
+      onClose();
+    } catch { /* error shown via toast */ } finally { setUploading(false); }
   }
 
   const canUpload = !!file && !!form.propertyId && !!form.description.trim();
