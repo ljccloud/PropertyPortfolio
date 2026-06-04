@@ -17,9 +17,15 @@ export function Card({
   return (
     <div
       onClick={onClick}
-      className={`bg-[#16181f] border border-[#1e2130] rounded-2xl p-4 ${
-        onClick ? 'cursor-pointer active:scale-[0.99] transition-transform' : ''
-      } ${className}`}
+      className={className}
+      style={{
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius)',
+        padding: '14px 16px',
+        marginBottom: 10,
+        cursor: onClick ? 'pointer' : undefined,
+      }}
     >
       {children}
     </div>
@@ -28,21 +34,31 @@ export function Card({
 
 // ─── Badge ────────────────────────────────────────────────────────────────────
 
-const badgeColors: Record<string, string> = {
-  Open: 'bg-red-500/15 text-red-400',
-  Closed: 'bg-emerald-500/15 text-emerald-400',
-  income: 'bg-emerald-500/15 text-emerald-400',
-  expense: 'bg-red-500/15 text-red-400',
-  valid: 'bg-emerald-500/15 text-emerald-400',
-  expiring: 'bg-amber-500/15 text-amber-400',
-  expired: 'bg-red-500/15 text-red-400',
-  missing: 'bg-[#2a2d3a] text-[#8b8fa8]',
+const badgeStyles: Record<string, { bg: string; color: string }> = {
+  Open:    { bg: 'var(--amber-bg)', color: 'var(--amber)' },
+  Closed:  { bg: 'var(--green-bg)', color: 'var(--green)' },
+  income:  { bg: 'var(--green-bg)', color: 'var(--green)' },
+  expense: { bg: 'var(--red-bg)',   color: 'var(--red)' },
+  valid:   { bg: 'var(--green-bg)', color: 'var(--green)' },
+  expiring:{ bg: 'var(--amber-bg)', color: 'var(--amber)' },
+  expired: { bg: 'var(--red-bg)',   color: 'var(--red)' },
+  missing: { bg: 'var(--surface2)', color: 'var(--text2)' },
+  Let:     { bg: 'var(--green-bg)', color: 'var(--green)' },
+  Vacant:  { bg: 'var(--amber-bg)', color: 'var(--amber)' },
 };
 
 export function Badge({ label }: { label: string }) {
-  const colors = badgeColors[label] || 'bg-[#2a2d3a] text-[#8b8fa8]';
+  const s = badgeStyles[label] || { bg: 'var(--surface2)', color: 'var(--text2)' };
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${colors}`}>
+    <span style={{
+      display: 'inline-block',
+      fontSize: 11,
+      fontWeight: 500,
+      padding: '2px 8px',
+      borderRadius: 20,
+      background: s.bg,
+      color: s.color,
+    }}>
       {label}
     </span>
   );
@@ -60,15 +76,28 @@ export function Modal({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-[#16181f] border border-[#1e2130] rounded-t-3xl sm:rounded-2xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-5 border-b border-[#1e2130] sticky top-0 bg-[#16181f] z-10">
-          <h2 className="text-lg font-semibold">{title}</h2>
-          <button onClick={onClose} className="p-2 text-[#8b8fa8] hover:text-white rounded-xl hover:bg-[#1e2130]">
-            <X size={20} />
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 300,
+      display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+      background: 'rgba(0,0,0,0.4)',
+    }}>
+      <div onClick={onClose} style={{ position: 'absolute', inset: 0 }} />
+      <div style={{
+        position: 'relative',
+        background: 'var(--surface)',
+        borderRadius: '20px 20px 0 0',
+        padding: '16px 16px 40px',
+        maxHeight: '90vh',
+        overflowY: 'auto',
+      }}>
+        <div style={{ width: 36, height: 4, background: 'var(--border2)', borderRadius: 2, margin: '0 auto 16px' }} />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 500 }}>{title}</h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text2)', padding: 4 }}>
+            <X size={18} />
           </button>
         </div>
-        <div className="p-5">{children}</div>
+        {children}
       </div>
     </div>
   );
@@ -81,11 +110,22 @@ export function Input({
   ...props
 }: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
   return (
-    <div className="space-y-1.5">
-      <label className="block text-xs font-medium text-[#8b8fa8] uppercase tracking-wide">{label}</label>
+    <div style={{ marginBottom: 12 }}>
+      <label style={{ display: 'block', fontSize: 12, color: 'var(--text2)', marginBottom: 5, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        {label}
+      </label>
       <input
         {...props}
-        className="w-full bg-[#0f1117] border border-[#1e2130] rounded-xl px-3.5 py-3 text-sm text-white placeholder-[#555870] focus:outline-none focus:border-[#6c63ff] transition-colors"
+        style={{
+          width: '100%', padding: '10px 12px',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-sm)',
+          background: 'var(--surface)',
+          color: 'var(--text)',
+          fontFamily: 'inherit',
+          fontSize: 14,
+          outline: 'none',
+        }}
       />
     </div>
   );
@@ -99,11 +139,23 @@ export function Select({
   ...props
 }: { label: string; children: React.ReactNode } & React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <div className="space-y-1.5">
-      <label className="block text-xs font-medium text-[#8b8fa8] uppercase tracking-wide">{label}</label>
+    <div style={{ marginBottom: 12 }}>
+      <label style={{ display: 'block', fontSize: 12, color: 'var(--text2)', marginBottom: 5, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        {label}
+      </label>
       <select
         {...props}
-        className="w-full bg-[#0f1117] border border-[#1e2130] rounded-xl px-3.5 py-3 text-sm text-white focus:outline-none focus:border-[#6c63ff] transition-colors appearance-none"
+        style={{
+          width: '100%', padding: '10px 12px',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-sm)',
+          background: 'var(--surface)',
+          color: 'var(--text)',
+          fontFamily: 'inherit',
+          fontSize: 14,
+          outline: 'none',
+          appearance: 'none',
+        }}
       >
         {children}
       </select>
@@ -118,12 +170,24 @@ export function Textarea({
   ...props
 }: { label: string } & React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
-    <div className="space-y-1.5">
-      <label className="block text-xs font-medium text-[#8b8fa8] uppercase tracking-wide">{label}</label>
+    <div style={{ marginBottom: 12 }}>
+      <label style={{ display: 'block', fontSize: 12, color: 'var(--text2)', marginBottom: 5, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        {label}
+      </label>
       <textarea
         {...props}
         rows={3}
-        className="w-full bg-[#0f1117] border border-[#1e2130] rounded-xl px-3.5 py-3 text-sm text-white placeholder-[#555870] focus:outline-none focus:border-[#6c63ff] transition-colors resize-none"
+        style={{
+          width: '100%', padding: '10px 12px',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-sm)',
+          background: 'var(--surface)',
+          color: 'var(--text)',
+          fontFamily: 'inherit',
+          fontSize: 14,
+          outline: 'none',
+          resize: 'none',
+        }}
       />
     </div>
   );
@@ -135,20 +199,36 @@ export function Button({
   children,
   variant = 'primary',
   className = '',
+  style = {},
   ...props
 }: {
   children: React.ReactNode;
   variant?: 'primary' | 'secondary' | 'danger';
   className?: string;
+  style?: React.CSSProperties;
 } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  const base = 'flex items-center justify-center gap-2 font-medium rounded-xl px-4 py-3 text-sm transition-all active:scale-[0.97] disabled:opacity-50';
-  const variants = {
-    primary: 'bg-[#6c63ff] text-white hover:bg-[#7c73ff]',
-    secondary: 'bg-[#1e2130] text-[#8b8fa8] hover:text-white hover:bg-[#2a2d3a]',
-    danger: 'bg-red-500/15 text-red-400 hover:bg-red-500/25',
+  const styles = {
+    primary:   { background: 'var(--text)', color: 'var(--bg)' },
+    secondary: { background: 'var(--surface2)', color: 'var(--text)', border: '1px solid var(--border)' },
+    danger:    { background: 'var(--red-bg)', color: 'var(--red)' },
   };
   return (
-    <button {...props} className={`${base} ${variants[variant]} ${className}`}>
+    <button
+      {...props}
+      style={{
+        width: '100%',
+        padding: '13px',
+        borderRadius: 'var(--radius-sm)',
+        fontFamily: 'inherit',
+        fontSize: 15,
+        fontWeight: 500,
+        cursor: 'pointer',
+        border: 'none',
+        marginTop: 4,
+        ...styles[variant],
+        ...style,
+      }}
+    >
       {children}
     </button>
   );
@@ -157,11 +237,11 @@ export function Button({
 // ─── Period Selector ──────────────────────────────────────────────────────────
 
 const periods: { key: PeriodFilter; label: string }[] = [
-  { key: 'ytd', label: 'YTD' },
+  { key: 'ytd',     label: 'YTD' },
   { key: 'tax-ytd', label: 'Tax YTD' },
-  { key: 'tax-q', label: 'Tax Q' },
-  { key: 'all', label: 'All' },
-  { key: 'custom', label: 'Custom' },
+  { key: 'tax-q',   label: 'Tax Q' },
+  { key: 'all',     label: 'All' },
+  { key: 'custom',  label: 'Custom' },
 ];
 
 export function PeriodSelector({
@@ -178,35 +258,44 @@ export function PeriodSelector({
   onCustomChange?: (from: string, to: string) => void;
 }) {
   return (
-    <div className="space-y-2">
-      <div className="flex gap-1 bg-[#16181f] border border-[#1e2130] rounded-xl p-1">
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ display: 'flex', gap: 6, overflowX: 'auto', scrollbarWidth: 'none', marginBottom: value === 'custom' ? 8 : 0 }}>
         {periods.map(({ key, label }) => (
           <button
             key={key}
             onClick={() => onChange(key)}
-            className={`flex-1 text-xs font-medium py-1.5 rounded-lg transition-all ${
-              value === key
-                ? 'bg-[#6c63ff] text-white'
-                : 'text-[#8b8fa8] hover:text-white'
-            }`}
+            style={{
+              fontSize: 13,
+              fontWeight: 500,
+              padding: '7px 14px',
+              border: '1px solid var(--border)',
+              borderRadius: 20,
+              background: value === key ? 'var(--text)' : 'transparent',
+              color: value === key ? 'var(--bg)' : 'var(--text2)',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+              fontFamily: 'inherit',
+            }}
           >
             {label}
           </button>
         ))}
       </div>
       {value === 'custom' && onCustomChange && (
-        <div className="flex gap-2">
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <input
             type="date"
             value={customFrom}
             onChange={e => onCustomChange(e.target.value, customTo || '')}
-            className="flex-1 bg-[#0f1117] border border-[#1e2130] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#6c63ff]"
+            style={{ flex: 1, padding: '6px 8px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'inherit' }}
           />
+          <span style={{ color: 'var(--text2)', flexShrink: 0, fontSize: 13 }}>to</span>
           <input
             type="date"
             value={customTo}
             onChange={e => onCustomChange(customFrom || '', e.target.value)}
-            className="flex-1 bg-[#0f1117] border border-[#1e2130] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#6c63ff]"
+            style={{ flex: 1, padding: '6px 8px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'inherit' }}
           />
         </div>
       )}
@@ -214,30 +303,29 @@ export function PeriodSelector({
   );
 }
 
-// ─── Stat card ────────────────────────────────────────────────────────────────
+// ─── Metric card ──────────────────────────────────────────────────────────────
 
-export function StatCard({
+export function MetricCard({
   label,
   value,
   sub,
-  color = 'default',
+  valueColor,
 }: {
   label: string;
   value: string;
   sub?: string;
-  color?: 'default' | 'green' | 'red' | 'purple';
+  valueColor?: string;
 }) {
-  const colors = {
-    default: 'text-white',
-    green: 'text-emerald-400',
-    red: 'text-red-400',
-    purple: 'text-[#6c63ff]',
-  };
   return (
-    <div className="bg-[#16181f] border border-[#1e2130] rounded-2xl p-4 space-y-1">
-      <p className="text-xs text-[#8b8fa8] uppercase tracking-wide font-medium">{label}</p>
-      <p className={`text-xl font-semibold ${colors[color]}`}>{value}</p>
-      {sub && <p className="text-xs text-[#555870]">{sub}</p>}
+    <div style={{
+      background: 'var(--surface)',
+      border: '1px solid var(--border)',
+      borderRadius: 'var(--radius-sm)',
+      padding: '12px 14px',
+    }}>
+      <div style={{ fontSize: 11, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>{label}</div>
+      <div style={{ fontSize: 22, fontWeight: 300, letterSpacing: '-0.02em', marginBottom: 3, color: valueColor || 'var(--text)' }}>{value}</div>
+      {sub && <div style={{ fontSize: 12, color: 'var(--text2)' }}>{sub}</div>}
     </div>
   );
 }
@@ -252,8 +340,19 @@ export function PageHeader({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between px-4 pt-14 pb-4 sticky top-0 bg-[#0f1117]/95 backdrop-blur-md z-10 border-b border-[#1e2130]">
-      <h1 className="text-xl font-semibold">{title}</h1>
+    <div style={{
+      height: 'var(--header-h)',
+      background: 'var(--surface)',
+      borderBottom: '1px solid var(--border)',
+      display: 'flex',
+      alignItems: 'center',
+      padding: '0 16px',
+      gap: 10,
+      position: 'sticky',
+      top: 0,
+      zIndex: 100,
+    }}>
+      <h1 style={{ fontFamily: 'DM Serif Display, serif', fontSize: 18, color: 'var(--text)', flex: 1 }}>{title}</h1>
       {action}
     </div>
   );
@@ -263,8 +362,8 @@ export function PageHeader({
 
 export function SectionHeader({ title }: { title: string }) {
   return (
-    <div className="px-4 py-2">
-      <h2 className="text-xs font-semibold text-[#8b8fa8] uppercase tracking-widest">{title}</h2>
+    <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '20px 0 8px' }}>
+      {title}
     </div>
   );
 }
@@ -273,8 +372,8 @@ export function SectionHeader({ title }: { title: string }) {
 
 export function EmptyState({ message }: { message: string }) {
   return (
-    <div className="flex items-center justify-center py-16 px-4">
-      <p className="text-[#555870] text-sm text-center">{message}</p>
+    <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--text2)', fontSize: 14 }}>
+      {message}
     </div>
   );
 }
@@ -283,8 +382,53 @@ export function EmptyState({ message }: { message: string }) {
 
 export function Spinner() {
   return (
-    <div className="flex items-center justify-center py-16">
-      <div className="w-8 h-8 border-2 border-[#6c63ff] border-t-transparent rounded-full animate-spin" />
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40 }}>
+      <div style={{
+        width: 20, height: 20,
+        border: '2px solid var(--border2)',
+        borderTopColor: 'var(--text2)',
+        borderRadius: '50%',
+        animation: 'spin 0.7s linear infinite',
+      }} />
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+}
+
+// ─── Info row ─────────────────────────────────────────────────────────────────
+
+export function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'baseline',
+      padding: '9px 0',
+      borderBottom: '1px solid var(--border)',
+      gap: 12,
+    }}>
+      <span style={{ fontSize: 13, color: 'var(--text2)', flexShrink: 0 }}>{label}</span>
+      <span style={{ fontSize: 14, textAlign: 'right' }}>{value}</span>
+    </div>
+  );
+}
+
+// ─── Alert strip ─────────────────────────────────────────────────────────────
+
+export function AlertStrip({ message, variant = 'red' }: { message: string; variant?: 'red' | 'amber' }) {
+  const styles = {
+    red:   { background: 'var(--red-bg)',   border: '1px solid #E8A0A0', color: 'var(--red)' },
+    amber: { background: 'var(--amber-bg)', border: '1px solid #E8C878', color: 'var(--amber)' },
+  };
+  return (
+    <div style={{
+      ...styles[variant],
+      borderRadius: 'var(--radius-sm)',
+      padding: '10px 12px',
+      marginBottom: 8,
+      fontSize: 13,
+    }}>
+      {message}
     </div>
   );
 }
@@ -292,9 +436,9 @@ export function Spinner() {
 // ─── Format helpers ───────────────────────────────────────────────────────────
 
 export function fmt(amount: number): string {
-  return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(amount);
+  return '£' + Math.abs(amount).toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
-export function fmtPct(n: number): string {
-  return `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`;
+export function fmtFull(amount: number): string {
+  return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(amount);
 }

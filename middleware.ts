@@ -8,14 +8,11 @@ export async function middleware(req: NextRequest) {
 
   const isLoginPage = pathname === '/login';
   const isApiAuth = pathname.startsWith('/api/auth');
+  const isPublic = pathname.startsWith('/_next') || pathname.startsWith('/favicon');
 
-  if (isApiAuth) return NextResponse.next();
-  if (!isLoggedIn && !isLoginPage) {
-    return NextResponse.redirect(new URL('/login', req.url));
-  }
-  if (isLoggedIn && isLoginPage) {
-    return NextResponse.redirect(new URL('/overview', req.url));
-  }
+  if (isPublic || isApiAuth) return NextResponse.next();
+  if (!isLoggedIn && !isLoginPage) return NextResponse.redirect(new URL('/login', req.url));
+  if (isLoggedIn && isLoginPage) return NextResponse.redirect(new URL('/shell', req.url));
   return NextResponse.next();
 }
 

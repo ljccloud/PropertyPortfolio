@@ -96,16 +96,16 @@ export default function DocumentsPage() {
     setForm(f => ({ ...f, expiryDate: format(expiry, 'yyyy-MM-dd') }));
   }
 
-  if (loading) return <div className="bg-[#0f1117] min-h-screen"><PageHeader title="Documents" /><Spinner /></div>;
+  if (loading) return <div className=" min-h-screen"><PageHeader title="Documents" /><Spinner /></div>;
 
   return (
-    <div className="bg-[#0f1117] min-h-screen">
+    <div className=" min-h-screen">
       <PageHeader
         title="Documents"
         action={
           <button
             onClick={() => setShowModal(true)}
-            className="flex items-center gap-1.5 bg-[#6c63ff] text-white text-sm font-medium px-3 py-1.5 rounded-xl"
+            className="flex items-center gap-1.5 bg-[#1A1916] text-[#1A1916] text-sm font-medium px-3 py-1.5 rounded-xl"
           >
             <Plus size={16} /> Upload
           </button>
@@ -117,7 +117,7 @@ export default function DocumentsPage() {
         <select
           value={filterPropertyId}
           onChange={e => setFilterPropertyId(e.target.value)}
-          className="w-full bg-[#16181f] border border-[#1e2130] rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-[#6c63ff]"
+          className="w-full  border border-[#E2DDD4] rounded-xl px-3.5 py-2.5 text-sm text-[#1A1916] focus:outline-none focus:border-[#1A1916]"
         >
           <option value="">All properties</option>
           {properties.map(p => <option key={p.id} value={p.id}>{p.address}</option>)}
@@ -134,21 +134,21 @@ export default function DocumentsPage() {
                   <Card key={doc.id} className="space-y-1.5">
                     <div className="flex items-start justify-between">
                       <div className="flex items-start gap-3 flex-1 min-w-0">
-                        <div className="w-8 h-8 bg-[#6c63ff]/15 rounded-xl flex items-center justify-center shrink-0 mt-0.5">
-                          <FileText size={15} className="text-[#6c63ff]" />
+                        <div className="w-8 h-8 bg-[#1A1916]/15 rounded-xl flex items-center justify-center shrink-0 mt-0.5">
+                          <FileText size={15} className="text-[#1A3A5C]" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">{doc.description}</p>
-                          <p className="text-xs text-[#555870]">
+                          <p className="text-xs text-[#A09D98]">
                             {doc.category}
                             {doc.certificateType ? ` · ${doc.certificateType}` : ''}
                             {doc.applianceName ? ` · ${doc.applianceName}` : ''}
                           </p>
-                          <p className="text-xs text-[#555870]">
+                          <p className="text-xs text-[#A09D98]">
                             {doc.documentDate ? format(parseISO(doc.documentDate), 'd MMM yyyy') : ''}
                           </p>
                           {doc.expiryDate && (
-                            <p className="text-xs text-amber-400">
+                            <p className="text-xs text-[#7A4A0A]">
                               Expires: {format(parseISO(doc.expiryDate), 'd MMM yyyy')}
                             </p>
                           )}
@@ -156,16 +156,16 @@ export default function DocumentsPage() {
                       </div>
                       <div className="flex items-center gap-1 shrink-0 ml-2">
                         <a href={doc.driveViewLink} target="_blank" rel="noopener noreferrer"
-                          className="p-1.5 text-[#555870] hover:text-[#6c63ff] rounded-lg">
+                          className="p-1.5 text-[#A09D98] hover:text-[#1A3A5C] rounded-lg">
                           <ExternalLink size={15} />
                         </a>
                         <button onClick={() => handleDelete(doc.id)}
-                          className="p-1.5 text-[#555870] hover:text-red-400 rounded-lg">
+                          className="p-1.5 text-[#A09D98] hover:text-[#8B2020] rounded-lg">
                           <Trash2 size={15} />
                         </button>
                       </div>
                     </div>
-                    <p className="text-[10px] text-[#3a3d50] truncate pl-11">{doc.driveFileName}</p>
+                    <p className="text-[10px] text-[#A09D98] truncate pl-11">{doc.driveFileName}</p>
                   </Card>
                 ))}
               </div>
@@ -192,8 +192,8 @@ export default function DocumentsPage() {
 
             {/* Certificate-specific fields */}
             {form.category === 'Certificates' && (
-              <div className="space-y-3 bg-[#0f1117] rounded-xl p-3">
-                <p className="text-xs font-medium text-[#8b8fa8] uppercase tracking-wide">Certificate Details</p>
+              <div className="space-y-3  rounded-xl p-3">
+                <p className="text-xs font-medium text-[#6B6760] uppercase tracking-wide">Certificate Details</p>
                 <Select label="Type" value={form.certificateType} onChange={e => setForm(f => ({ ...f, certificateType: e.target.value as CertificateType }))}>
                   {CERT_TYPES.map(c => <option key={c} value={c}>{c}</option>)}
                 </Select>
@@ -201,8 +201,8 @@ export default function DocumentsPage() {
                 <div className="space-y-2">
                   <Input label="Expiry Date" type="date" value={form.expiryDate} onChange={e => setForm(f => ({ ...f, expiryDate: e.target.value }))} />
                   <div className="flex gap-2">
-                    <button onClick={() => setExpiryPreset(1)} className="flex-1 text-xs py-1.5 bg-[#1e2130] text-[#8b8fa8] hover:text-white rounded-lg">+1 year</button>
-                    <button onClick={() => setExpiryPreset(5)} className="flex-1 text-xs py-1.5 bg-[#1e2130] text-[#8b8fa8] hover:text-white rounded-lg">+5 years</button>
+                    <button onClick={() => setExpiryPreset(1)} className="flex-1 text-xs py-1.5 bg-[#F0EDE6] text-[#6B6760] hover:text-[#1A1916] rounded-lg">+1 year</button>
+                    <button onClick={() => setExpiryPreset(5)} className="flex-1 text-xs py-1.5 bg-[#F0EDE6] text-[#6B6760] hover:text-[#1A1916] rounded-lg">+5 years</button>
                   </div>
                 </div>
                 <Textarea label="Issuer Notes" value={form.issuerNotes} onChange={e => setForm(f => ({ ...f, issuerNotes: e.target.value }))} />
@@ -211,8 +211,8 @@ export default function DocumentsPage() {
 
             {/* Appliance-specific fields */}
             {form.category === 'Appliances' && (
-              <div className="space-y-3 bg-[#0f1117] rounded-xl p-3">
-                <p className="text-xs font-medium text-[#8b8fa8] uppercase tracking-wide">Appliance Details</p>
+              <div className="space-y-3  rounded-xl p-3">
+                <p className="text-xs font-medium text-[#6B6760] uppercase tracking-wide">Appliance Details</p>
                 <Input label="Name" value={form.applianceName} onChange={e => setForm(f => ({ ...f, applianceName: e.target.value }))} placeholder="e.g. Boiler" />
                 <div className="grid grid-cols-2 gap-3">
                   <Input label="Make" value={form.applianceMake} onChange={e => setForm(f => ({ ...f, applianceMake: e.target.value }))} />
@@ -237,10 +237,10 @@ export default function DocumentsPage() {
               />
               <button
                 onClick={() => fileRef.current?.click()}
-                className="w-full border-2 border-dashed border-[#1e2130] rounded-xl p-4 flex flex-col items-center gap-2 hover:border-[#6c63ff]/50 transition-colors"
+                className="w-full border-2 border-dashed border-[#E2DDD4] rounded-xl p-4 flex flex-col items-center gap-2 hover:border-[#1A1916]/50 transition-colors"
               >
-                <Upload size={20} className="text-[#555870]" />
-                <p className="text-sm text-[#8b8fa8]">
+                <Upload size={20} className="text-[#A09D98]" />
+                <p className="text-sm text-[#6B6760]">
                   {file ? file.name : 'Tap to select file'}
                 </p>
               </button>

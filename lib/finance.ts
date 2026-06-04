@@ -1,35 +1,31 @@
-import {
-  startOfDay,
-  endOfDay,
-  differenceInCalendarDays,
-  parseISO,
-  isWithinInterval,
-  startOfYear,
-  endOfYear,
-  format,
-  addMonths,
-  addYears,
-} from 'date-fns';
-import { Transaction, PeriodFilter, CustomPeriod, TransactionType } from '@/types';
+import { parseISO, format, startOfYear, addMonths } from 'date-fns';
+import { Transaction, PeriodFilter, CustomPeriod } from '@/types';
 
 // ─── UK Tax Year helpers ──────────────────────────────────────────────────────
-// UK tax year: 6 April to 5 April
+// UK tax year: 6 April to 5 April the following year
+// Bug fix: original used `month >= 3 && day >= 6` which is wrong for e.g. May 3
+// (month=4 >=3 but day=3 <6 → returned wrong year)
+// Correct: past Apr 6 means month > 3, OR month === 3 AND day >= 6
 
 export function ukTaxYearStart(date: Date = new Date()): Date {
-  const year = date.getMonth() >= 3 && date.getDate() >= 6
+  const m = date.getMonth(); // 0-indexed, April = 3
+  const d = date.getDate();
+  const year = (m > 3 || (m === 3 && d >= 6))
     ? date.getFullYear()
     : date.getFullYear() - 1;
-  return new Date(year, 3, 6); // April 6
+  return new Date(year, 3, 6); // 6 April
 }
 
 export function ukTaxYearEnd(date: Date = new Date()): Date {
   const start = ukTaxYearStart(date);
-  return new Date(start.getFullYear() + 1, 3, 5); // April 5 next year
+  // End is 5 April of the following year, at end of day
+  return new Date(start.getFullYear() + 1, 3, 5, 23, 59, 59, 999);
 }
 
 export function ukTaxQuarterStart(date: Date = new Date()): Date {
-  const start = ukTaxYearStart(date);
-  const quarters = [0, 3, 6, 9].map(m => addMonths(start, m));
+  const tyStart = ukTaxYearStart(date);
+  // Four quarters: Apr6, Jul6, Oct6, Jan6
+  const quarters = [0, 3, 6, 9].map(m => addMonths(tyStart, m));
   // Find the most recent quarter start that is <= date
   const past = quarters.filter(q => q <= date);
   return past[past.length - 1] || quarters[0];
@@ -37,7 +33,12 @@ export function ukTaxQuarterStart(date: Date = new Date()): Date {
 
 export function ukTaxQuarterEnd(date: Date = new Date()): Date {
   const qStart = ukTaxQuarterStart(date);
-  return addMonths(qStart, 3);
+  // Quarter end = day before next quarter start, end of day
+  const nextQStart = addMonths(qStart, 3);
+  const end = new Date(nextQStart);
+  end.setDate(end.getDate() - 1);
+  end.setHours(23, 59, 59, 999);
+  return end;
 }
 
 // ─── Period resolution ────────────────────────────────────────────────────────
@@ -55,63 +56,90 @@ export function resolvePeriod(
 
   switch (filter) {
     case 'ytd':
-      return { from: startOfYear(now), to: now };
+      return {
+        from: new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0), // Jan 1 00:00:00
+        to: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999),
+      };
     case 'tax-ytd':
-      return { from: ukTaxYearStart(now), to: now };
+      return {
+        from: ukTaxYearStart(now),
+        to: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999),
+      };
     case 'tax-q':
-      return { from: ukTaxQuarterStart(now), to: ukTaxQuarterEnd(now) };
+      return {
+        from: ukTaxQuarterStart(now),
+        to: ukTaxQuarterEnd(now),
+      };
     case 'all':
-      return { from: new Date('2000-01-01'), to: new Date('2099-12-31') };
+      return {
+        from: new Date('2000-01-01T00:00:00'),
+        to: new Date('2099-12-31T23:59:59'),
+      };
     case 'custom':
       if (!custom) throw new Error('Custom period requires from/to dates');
-      return { from: parseISO(custom.from), to: parseISO(custom.to) };
+      return {
+        from: new Date(custom.from + 'T00:00:00'),
+        to: new Date(custom.to + 'T23:59:59'),
+      };
     default:
-      return { from: startOfYear(now), to: now };
+      return {
+        from: new Date(now.getFullYear(), 0, 1),
+        to: now,
+      };
   }
 }
 
 // ─── Daily proration ──────────────────────────────────────────────────────────
-// For a transaction that spans a period, apportion the amount to the query window.
+// For a transaction spanning a period, apportion the amount proportionally by day.
+// Uses Math.round() to avoid floating-point day-count errors.
 
 export function prorateTransaction(
   transaction: Transaction,
   queryRange: DateRange
 ): number {
-  const txStart = startOfDay(parseISO(transaction.dateStart));
+  // Parse transaction bounds — always treat as full days
+  const txStart = new Date(transaction.dateStart + 'T00:00:00');
   const txEnd = transaction.dateEnd
-    ? endOfDay(parseISO(transaction.dateEnd))
-    : endOfDay(txStart); // single-day transaction
+    ? new Date(transaction.dateEnd + 'T23:59:59')
+    : new Date(transaction.dateStart + 'T23:59:59'); // single-day
 
-  // No overlap
+  // No overlap at all
   if (txEnd < queryRange.from || txStart > queryRange.to) return 0;
 
-  // Full transaction within range
-  const totalDays = differenceInCalendarDays(txEnd, txStart) + 1;
+  // Single-day transaction: either in range or not
+  if (!transaction.dateEnd || transaction.dateStart === transaction.dateEnd) {
+    return txStart >= queryRange.from && txStart <= queryRange.to
+      ? transaction.amount
+      : 0;
+  }
 
-  // Intersection
+  // Multi-day: calculate overlap using Math.round to avoid float drift
+  const totalDays = Math.round((txEnd.getTime() - txStart.getTime()) / 86400000) + 1;
+
   const overlapStart = txStart < queryRange.from ? queryRange.from : txStart;
   const overlapEnd = txEnd > queryRange.to ? queryRange.to : txEnd;
-  const overlapDays = differenceInCalendarDays(overlapEnd, overlapStart) + 1;
 
-  if (totalDays <= 1) return transaction.amount;
+  if (overlapStart > overlapEnd) return 0;
+
+  const overlapDays = Math.round((overlapEnd.getTime() - overlapStart.getTime()) / 86400000) + 1;
 
   return (transaction.amount * overlapDays) / totalDays;
 }
 
-// ─── Apply ownership share ────────────────────────────────────────────────────
+// ─── Ownership share ──────────────────────────────────────────────────────────
 
 export function applyOwnership(amount: number, ownershipPct: number): number {
   return (amount * ownershipPct) / 100;
 }
 
-// ─── Summarise transactions ───────────────────────────────────────────────────
+// ─── Summarise transactions for a period ──────────────────────────────────────
 
 export interface FinanceSummary {
   income: number;
   expenses: number;
   agentFees: number;
-  netIncome: number; // income - agent fees
-  profit: number;   // income - all expenses
+  netIncome: number; // income minus agent fees
+  profit: number;   // income minus all expenses
 }
 
 export function summariseTransactions(
@@ -125,6 +153,7 @@ export function summariseTransactions(
 
   for (const tx of transactions) {
     const prorated = prorateTransaction(tx, period);
+    if (prorated === 0) continue;
     const owned = applyOwnership(prorated, ownershipPct);
 
     if (tx.type === 'income') {
@@ -146,10 +175,10 @@ export function summariseTransactions(
   };
 }
 
-// ─── Yield calculation ────────────────────────────────────────────────────────
+// ─── Yield ────────────────────────────────────────────────────────────────────
 
 export function calculateYield(annualRent: number, propertyValue: number): number {
-  if (!propertyValue || propertyValue === 0) return 0;
+  if (!propertyValue) return 0;
   return round2((annualRent / propertyValue) * 100);
 }
 
@@ -161,44 +190,48 @@ export function exportToCsv(
   ownershipPct: number = 100
 ): string {
   const rows: string[] = [
-    'Date,Property,Type,Category,Description,Supplier,Amount,Prorated Amount',
+    'Date (UK),Date Start,Date End,Property,Type,Category,Description,Supplier,Full Amount,Apportioned Amount',
   ];
 
   for (const tx of transactions) {
     const prorated = prorateTransaction(tx, period);
     if (prorated === 0) continue;
-
     const owned = applyOwnership(prorated, ownershipPct);
-    rows.push(
-      [
-        tx.dateStart,
-        `"${tx.propertyAddress}"`,
-        tx.type,
-        `"${tx.category}"`,
-        `"${tx.description || ''}"`,
-        `"${tx.supplier || ''}"`,
-        tx.amount.toFixed(2),
-        owned.toFixed(2),
-      ].join(',')
-    );
+    const ukDate = tx.dateStart
+      ? (() => { try { const d = new Date(tx.dateStart + 'T00:00:00'); return `${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getFullYear()}`; } catch { return tx.dateStart; } })()
+      : '';
+    rows.push([
+      ukDate,
+      tx.dateStart,
+      tx.dateEnd || tx.dateStart,
+      `"${tx.propertyAddress}"`,
+      tx.type,
+      `"${tx.category}"`,
+      `"${tx.description || ''}"`,
+      `"${tx.supplier || ''}"`,
+      tx.amount.toFixed(2),
+      owned.toFixed(2),
+    ].join(','));
   }
 
   return rows.join('\n');
 }
 
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
-}
-
-// ─── Period label helper ──────────────────────────────────────────────────────
+// ─── Period label ─────────────────────────────────────────────────────────────
 
 export function periodLabel(filter: PeriodFilter, custom?: CustomPeriod): string {
   const range = resolvePeriod(filter, custom);
+  const f = (d: Date) => format(d, 'd MMM yyyy'); // UK format: day month year
   switch (filter) {
-    case 'ytd': return `YTD (Jan ${format(range.from, 'yyyy')}–now)`;
-    case 'tax-ytd': return `Tax YTD (${format(range.from, 'd MMM yyyy')}–now)`;
-    case 'tax-q': return `Tax Q (${format(range.from, 'd MMM')}–${format(range.to, 'd MMM yyyy')})`;
-    case 'all': return 'All time';
-    case 'custom': return `${format(range.from, 'd MMM yyyy')}–${format(range.to, 'd MMM yyyy')}`;
+    case 'ytd':     return `YTD ${range.from.getFullYear()}`;
+    case 'tax-ytd': return `Tax YTD ${f(range.from)}–today`;
+    case 'tax-q':   return `Tax Q (${f(range.from)}–${f(range.to)})`;
+    case 'all':     return 'All time';
+    case 'custom':  return `${f(range.from)}–${f(range.to)}`;
+    default:        return '';
   }
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
 }

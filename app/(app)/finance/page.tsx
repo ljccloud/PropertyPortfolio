@@ -150,20 +150,20 @@ export default function FinancePage() {
 
   const categories = form.type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 
-  if (loading) return <div className="bg-[#0f1117] min-h-screen"><PageHeader title="Finance" /><Spinner /></div>;
+  if (loading) return <div className=" min-h-screen"><PageHeader title="Finance" /><Spinner /></div>;
 
   return (
-    <div className="bg-[#0f1117] min-h-screen">
+    <div className=" min-h-screen">
       <PageHeader
         title="Finance Log"
         action={
           <div className="flex gap-2">
-            <button onClick={downloadCsv} className="p-2 text-[#8b8fa8] hover:text-white">
+            <button onClick={downloadCsv} className="p-2 text-[#6B6760] hover:text-[#1A1916]">
               <Download size={18} />
             </button>
             <button
               onClick={() => { setEditTx(null); setForm(emptyForm); setShowModal(true); }}
-              className="flex items-center gap-1.5 bg-[#6c63ff] text-white text-sm font-medium px-3 py-1.5 rounded-xl"
+              className="flex items-center gap-1.5 bg-[#1A1916] text-[#1A1916] text-sm font-medium px-3 py-1.5 rounded-xl"
             >
               <Plus size={16} /> Add
             </button>
@@ -184,7 +184,7 @@ export default function FinancePage() {
         <select
           value={filterPropertyId}
           onChange={e => setFilterPropertyId(e.target.value)}
-          className="w-full bg-[#16181f] border border-[#1e2130] rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-[#6c63ff]"
+          className="w-full  border border-[#E2DDD4] rounded-xl px-3.5 py-2.5 text-sm text-[#1A1916] focus:outline-none focus:border-[#1A1916]"
         >
           <option value="">All properties</option>
           {properties.map(p => <option key={p.id} value={p.id}>{p.address}</option>)}
@@ -192,17 +192,17 @@ export default function FinancePage() {
 
         {/* Totals */}
         <div className="grid grid-cols-3 gap-2">
-          <div className="bg-[#16181f] border border-[#1e2130] rounded-xl p-3 text-center">
-            <p className="text-[10px] text-[#8b8fa8] uppercase">Income</p>
-            <p className="text-sm font-semibold text-emerald-400">{fmt(totals.income)}</p>
+          <div className=" border border-[#E2DDD4] rounded-xl p-3 text-center">
+            <p className="text-[10px] text-[#6B6760] uppercase">Income</p>
+            <p className="text-sm font-semibold text-[#2D5A27]">{fmt(totals.income)}</p>
           </div>
-          <div className="bg-[#16181f] border border-[#1e2130] rounded-xl p-3 text-center">
-            <p className="text-[10px] text-[#8b8fa8] uppercase">Expenses</p>
-            <p className="text-sm font-semibold text-red-400">{fmt(totals.expenses)}</p>
+          <div className=" border border-[#E2DDD4] rounded-xl p-3 text-center">
+            <p className="text-[10px] text-[#6B6760] uppercase">Expenses</p>
+            <p className="text-sm font-semibold text-[#8B2020]">{fmt(totals.expenses)}</p>
           </div>
-          <div className="bg-[#16181f] border border-[#1e2130] rounded-xl p-3 text-center">
-            <p className="text-[10px] text-[#8b8fa8] uppercase">Profit</p>
-            <p className={`text-sm font-semibold ${totals.profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmt(totals.profit)}</p>
+          <div className=" border border-[#E2DDD4] rounded-xl p-3 text-center">
+            <p className="text-[10px] text-[#6B6760] uppercase">Profit</p>
+            <p className={`text-sm font-semibold ${totals.profit >= 0 ? 'text-[#2D5A27]' : 'text-[#8B2020]'}`}>{fmt(totals.profit)}</p>
           </div>
         </div>
 
@@ -222,27 +222,27 @@ export default function FinancePage() {
                         <p className="text-sm font-medium truncate">{tx.description || tx.category}</p>
                         <Badge label={tx.type} />
                       </div>
-                      <p className="text-xs text-[#555870] mt-0.5">{tx.propertyAddress}</p>
+                      <p className="text-xs text-[#A09D98] mt-0.5">{tx.propertyAddress}</p>
                     </div>
                     <div className="text-right shrink-0 ml-2">
-                      <p className={`text-sm font-semibold ${tx.type === 'income' ? 'text-emerald-400' : 'text-red-400'}`}>
+                      <p className={`text-sm font-semibold ${tx.type === 'income' ? 'text-[#2D5A27]' : 'text-[#8B2020]'}`}>
                         {tx.type === 'income' ? '+' : '-'}{fmt(prorated)}
                       </p>
                       {isProrated && (
-                        <p className="text-[10px] text-[#555870]">of {fmt(tx.amount)}</p>
+                        <p className="text-[10px] text-[#A09D98]">of {fmt(tx.amount)}</p>
                       )}
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
-                    <p className="text-xs text-[#555870]">
+                    <p className="text-xs text-[#A09D98]">
                       {format(parseISO(tx.dateStart), 'd MMM yyyy')}
                       {tx.dateEnd && ` → ${format(parseISO(tx.dateEnd), 'd MMM yyyy')}`}
                     </p>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-[#555870]">{tx.category}</span>
+                      <span className="text-xs text-[#A09D98]">{tx.category}</span>
                       <button
                         onClick={e => { e.stopPropagation(); handleDelete(tx.id); }}
-                        className="p-1.5 text-[#555870] hover:text-red-400 rounded-lg"
+                        className="p-1.5 text-[#A09D98] hover:text-[#8B2020] rounded-lg"
                       >
                         <Trash2 size={13} />
                       </button>
@@ -294,7 +294,7 @@ export default function FinancePage() {
                   <button
                     key={p}
                     onClick={() => setDatePreset(p)}
-                    className="flex-1 text-xs py-1.5 bg-[#1e2130] text-[#8b8fa8] hover:text-white rounded-lg"
+                    className="flex-1 text-xs py-1.5 bg-[#F0EDE6] text-[#6B6760] hover:text-[#1A1916] rounded-lg"
                   >
                     +{p}
                   </button>

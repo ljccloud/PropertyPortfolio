@@ -75,23 +75,23 @@ export default function PropertyDetailPage() {
     return 'valid';
   }
 
-  if (loading) return <div className="bg-[#0f1117] min-h-screen pt-14"><Spinner /></div>;
-  if (!property) return <div className="bg-[#0f1117] min-h-screen pt-14"><EmptyState message="Property not found" /></div>;
+  if (loading) return <div className=" min-h-screen pt-14"><Spinner /></div>;
+  if (!property) return <div className=" min-h-screen pt-14"><EmptyState message="Property not found" /></div>;
 
   const yield_ = property.currentValue && property.tenant?.rentPcm
     ? (((property.tenant.rentPcm * 12) / property.currentValue) * 100).toFixed(1)
     : null;
 
   return (
-    <div className="bg-[#0f1117] min-h-screen">
+    <div className=" min-h-screen">
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 pt-14 pb-4 sticky top-0 bg-[#0f1117]/95 backdrop-blur-md z-10 border-b border-[#1e2130]">
-        <button onClick={() => router.back()} className="p-2 -ml-2 text-[#8b8fa8]">
+      <div className="flex items-center gap-3 px-4 pt-14 pb-4 sticky top-0 /95 backdrop-blur-md z-10 border-b border-[#E2DDD4]">
+        <button onClick={() => router.back()} className="p-2 -ml-2 text-[#6B6760]">
           <ArrowLeft size={20} />
         </button>
         <div className="flex-1 min-w-0">
           <h1 className="text-base font-semibold truncate">{property.address}</h1>
-          {property.reference && <p className="text-xs text-[#555870]">{property.reference}</p>}
+          {property.reference && <p className="text-xs text-[#A09D98]">{property.reference}</p>}
         </div>
       </div>
 
@@ -112,11 +112,11 @@ export default function PropertyDetailPage() {
             <InfoItem label="Gross Yield" value={yield_ ? `${yield_}%` : '—'} />
           </div>
           <div className="mt-3 space-y-1">
-            <p className="text-xs text-[#8b8fa8] uppercase tracking-wide font-medium">Ownership</p>
+            <p className="text-xs text-[#6B6760] uppercase tracking-wide font-medium">Ownership</p>
             {property.owners.map(o => (
               <div key={o.id} className="flex justify-between text-sm">
                 <span>{o.name || 'Owner'}</span>
-                <span className="text-[#6c63ff] font-medium">{o.percentage}%</span>
+                <span className="text-[#1A3A5C] font-medium">{o.percentage}%</span>
               </div>
             ))}
           </div>
@@ -133,16 +133,16 @@ export default function PropertyDetailPage() {
           {property.tenant ? (
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm">
-                <User size={14} className="text-[#555870]" />
+                <User size={14} className="text-[#A09D98]" />
                 <span>{property.tenant.name}</span>
               </div>
               <div className="flex items-center gap-2 text-sm">
-                <Mail size={14} className="text-[#555870]" />
-                <a href={`mailto:${property.tenant.email}`} className="text-[#6c63ff]">{property.tenant.email}</a>
+                <Mail size={14} className="text-[#A09D98]" />
+                <a href={`mailto:${property.tenant.email}`} className="text-[#1A3A5C]">{property.tenant.email}</a>
               </div>
               <div className="flex items-center gap-2 text-sm">
-                <Phone size={14} className="text-[#555870]" />
-                <a href={`tel:${property.tenant.phone}`} className="text-[#6c63ff]">{property.tenant.phone}</a>
+                <Phone size={14} className="text-[#A09D98]" />
+                <a href={`tel:${property.tenant.phone}`} className="text-[#1A3A5C]">{property.tenant.phone}</a>
               </div>
               <div className="grid grid-cols-2 gap-3 pt-2">
                 <InfoItem label="Rent PCM" value={fmt(property.tenant.rentPcm)} />
@@ -164,11 +164,11 @@ export default function PropertyDetailPage() {
         >
           {property.lettingAgent ? (
             <div className="space-y-1.5 text-sm">
-              <p><span className="text-[#555870]">Agent: </span>{property.lettingAgent.name}</p>
-              <p><span className="text-[#555870]">Company: </span>{property.lettingAgent.company}</p>
-              <p><span className="text-[#555870]">Contact: </span>{property.lettingAgent.contact}</p>
+              <p><span className="text-[#A09D98]">Agent: </span>{property.lettingAgent.name}</p>
+              <p><span className="text-[#A09D98]">Company: </span>{property.lettingAgent.company}</p>
+              <p><span className="text-[#A09D98]">Contact: </span>{property.lettingAgent.contact}</p>
               {property.lettingAgent.email && (
-                <a href={`mailto:${property.lettingAgent.email}`} className="flex items-center gap-1 text-[#6c63ff]">
+                <a href={`mailto:${property.lettingAgent.email}`} className="flex items-center gap-1 text-[#1A3A5C]">
                   <Mail size={13} />{property.lettingAgent.email}
                 </a>
               )}
@@ -186,17 +186,17 @@ export default function PropertyDetailPage() {
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-xs text-[#555870] text-left">
+                <tr className="text-xs text-[#A09D98] text-left">
                   <th className="pb-2">From</th><th className="pb-2">To</th><th className="pb-2">Amount</th><th className="pb-2">Notes</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#1e2130]">
+              <tbody className="divide-y divide-[#E2DDD4]">
                 {property.rentHistory.map(r => (
                   <tr key={r.id} className="text-xs">
                     <td className="py-2">{r.dateFrom ? format(parseISO(r.dateFrom), 'd MMM yy') : '—'}</td>
                     <td className="py-2">{r.dateTo ? format(parseISO(r.dateTo), 'd MMM yy') : 'Present'}</td>
                     <td className="py-2 font-medium">{fmt(r.amount)}</td>
-                    <td className="py-2 text-[#555870]">{r.notes || ''}</td>
+                    <td className="py-2 text-[#A09D98]">{r.notes || ''}</td>
                   </tr>
                 ))}
               </tbody>
@@ -212,19 +212,19 @@ export default function PropertyDetailPage() {
             <div className="space-y-3">
               {certDocs.length > 0 && (
                 <div>
-                  <p className="text-xs text-[#8b8fa8] font-medium mb-2">Certificates</p>
+                  <p className="text-xs text-[#6B6760] font-medium mb-2">Certificates</p>
                   {certDocs.map(d => (
-                    <div key={d.id} className="flex items-center justify-between py-2 border-b border-[#1e2130] last:border-0">
+                    <div key={d.id} className="flex items-center justify-between py-2 border-b border-[#E2DDD4] last:border-0">
                       <div>
                         <p className="text-sm font-medium">{d.certificateType}</p>
-                        <p className="text-xs text-[#555870]">
+                        <p className="text-xs text-[#A09D98]">
                           Expires: {d.expiryDate ? format(parseISO(d.expiryDate), 'd MMM yyyy') : '—'}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge label={certBadge(d.expiryDate)} />
                         <a href={d.driveViewLink} target="_blank" rel="noopener noreferrer">
-                          <ExternalLink size={14} className="text-[#555870]" />
+                          <ExternalLink size={14} className="text-[#A09D98]" />
                         </a>
                       </div>
                     </div>
@@ -233,15 +233,15 @@ export default function PropertyDetailPage() {
               )}
               {applianceDocs.length > 0 && (
                 <div>
-                  <p className="text-xs text-[#8b8fa8] font-medium mb-2">Appliances</p>
+                  <p className="text-xs text-[#6B6760] font-medium mb-2">Appliances</p>
                   {applianceDocs.map(d => (
-                    <div key={d.id} className="flex items-center justify-between py-2 border-b border-[#1e2130] last:border-0">
+                    <div key={d.id} className="flex items-center justify-between py-2 border-b border-[#E2DDD4] last:border-0">
                       <div>
                         <p className="text-sm font-medium">{d.applianceName}</p>
-                        <p className="text-xs text-[#555870]">{d.applianceMake} {d.applianceModel}</p>
+                        <p className="text-xs text-[#A09D98]">{d.applianceMake} {d.applianceModel}</p>
                       </div>
                       <a href={d.driveViewLink} target="_blank" rel="noopener noreferrer">
-                        <ExternalLink size={14} className="text-[#555870]" />
+                        <ExternalLink size={14} className="text-[#A09D98]" />
                       </a>
                     </div>
                   ))}
@@ -261,14 +261,14 @@ export default function PropertyDetailPage() {
           ) : (
             <div className="space-y-2">
               {property.keyContacts.map(c => (
-                <div key={c.id} className="flex items-start justify-between py-2 border-b border-[#1e2130] last:border-0">
+                <div key={c.id} className="flex items-start justify-between py-2 border-b border-[#E2DDD4] last:border-0">
                   <div>
                     <p className="text-sm font-medium">{c.name}</p>
-                    <p className="text-xs text-[#555870]">{c.category} {c.company ? `· ${c.company}` : ''}</p>
-                    {c.email && <a href={`mailto:${c.email}`} className="text-xs text-[#6c63ff]">{c.email}</a>}
+                    <p className="text-xs text-[#A09D98]">{c.category} {c.company ? `· ${c.company}` : ''}</p>
+                    {c.email && <a href={`mailto:${c.email}`} className="text-xs text-[#1A3A5C]">{c.email}</a>}
                   </div>
                   {c.phone && (
-                    <a href={`tel:${c.phone}`} className="text-xs text-[#6c63ff]">{c.phone}</a>
+                    <a href={`tel:${c.phone}`} className="text-xs text-[#1A3A5C]">{c.phone}</a>
                   )}
                 </div>
               ))}
@@ -288,13 +288,13 @@ export default function PropertyDetailPage() {
                   href={d.driveViewLink}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-between py-2 border-b border-[#1e2130] last:border-0"
+                  className="flex items-center justify-between py-2 border-b border-[#E2DDD4] last:border-0"
                 >
                   <div className="flex-1 min-w-0 mr-2">
                     <p className="text-sm truncate">{d.description}</p>
-                    <p className="text-xs text-[#555870]">{d.category} · {d.documentDate ? format(parseISO(d.documentDate), 'd MMM yyyy') : ''}</p>
+                    <p className="text-xs text-[#A09D98]">{d.category} · {d.documentDate ? format(parseISO(d.documentDate), 'd MMM yyyy') : ''}</p>
                   </div>
-                  <ExternalLink size={14} className="text-[#555870] shrink-0" />
+                  <ExternalLink size={14} className="text-[#A09D98] shrink-0" />
                 </a>
               ))}
             </div>
@@ -308,10 +308,10 @@ export default function PropertyDetailPage() {
           ) : (
             <div className="space-y-2">
               {maintenance.slice(0, 5).map(m => (
-                <div key={m.id} className="flex items-center justify-between py-2 border-b border-[#1e2130] last:border-0">
+                <div key={m.id} className="flex items-center justify-between py-2 border-b border-[#E2DDD4] last:border-0">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm truncate">{m.issue}</p>
-                    <p className="text-xs text-[#555870]">{m.dateRaised ? format(parseISO(m.dateRaised), 'd MMM yyyy') : ''}</p>
+                    <p className="text-xs text-[#A09D98]">{m.dateRaised ? format(parseISO(m.dateRaised), 'd MMM yyyy') : ''}</p>
                   </div>
                   <Badge label={m.status} />
                 </div>
@@ -445,16 +445,16 @@ function SectionRow({
           {onEdit && (
             <span
               onClick={e => { e.stopPropagation(); onEdit(); }}
-              className="text-xs text-[#6c63ff] px-2 py-1 rounded-lg hover:bg-[#6c63ff]/10"
+              className="text-xs text-[#1A3A5C] px-2 py-1 rounded-lg hover:bg-[#1A1916]/10"
             >
               {editLabel}
             </span>
           )}
-          {isOpen ? <ChevronUp size={16} className="text-[#555870]" /> : <ChevronDown size={16} className="text-[#555870]" />}
+          {isOpen ? <ChevronUp size={16} className="text-[#A09D98]" /> : <ChevronDown size={16} className="text-[#A09D98]" />}
         </div>
       </button>
       {isOpen && (
-        <div className="px-4 pb-4 border-t border-[#1e2130]">
+        <div className="px-4 pb-4 border-t border-[#E2DDD4]">
           <div className="pt-3">{children}</div>
         </div>
       )}
@@ -465,7 +465,7 @@ function SectionRow({
 function InfoItem({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-xs text-[#555870]">{label}</p>
+      <p className="text-xs text-[#A09D98]">{label}</p>
       <p className="text-sm font-medium">{value}</p>
     </div>
   );

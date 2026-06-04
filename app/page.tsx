@@ -4,5 +4,5 @@ import { auth } from '@/lib/auth';
 export default async function RootPage() {
   const session = await auth();
   if (!session) redirect('/login');
-  redirect('/overview');
+  redirect('/shell');
 }

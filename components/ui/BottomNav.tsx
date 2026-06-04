@@ -2,38 +2,51 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Building2, ReceiptText, Wrench, FolderOpen } from 'lucide-react';
 
 const tabs = [
-  { href: '/overview', label: 'Overview', icon: LayoutDashboard },
-  { href: '/properties', label: 'Properties', icon: Building2 },
-  { href: '/finance', label: 'Finance', icon: ReceiptText },
-  { href: '/maintenance', label: 'Maintenance', icon: Wrench },
-  { href: '/documents', label: 'Documents', icon: FolderOpen },
+  { href: '/overview',    label: 'Overview',    icon: '⌂' },
+  { href: '/properties',  label: 'Properties',  icon: '⊞' },
+  { href: '/finance',     label: 'Finance',     icon: '£' },
+  { href: '/maintenance', label: 'Maintenance', icon: '🔧' },
+  { href: '/documents',   label: 'Documents',   icon: '📄' },
 ];
 
 export default function BottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-[#16181f] border-t border-[#1e2130] pb-safe z-50">
-      <div className="flex items-center justify-around h-16">
-        {tabs.map(({ href, label, icon: Icon }) => {
-          const active = pathname.startsWith(href);
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={`flex flex-col items-center justify-center gap-1 flex-1 h-full transition-colors ${
-                active ? 'text-[#6c63ff]' : 'text-[#555870]'
-              }`}
-            >
-              <Icon size={20} strokeWidth={active ? 2.2 : 1.8} />
-              <span className="text-[10px] font-medium">{label}</span>
-            </Link>
-          );
-        })}
-      </div>
+    <nav style={{
+      height: 'var(--nav-h)',
+      background: 'var(--surface)',
+      borderTop: '1px solid var(--border)',
+      display: 'flex',
+      flexShrink: 0,
+      paddingBottom: 'env(safe-area-inset-bottom)',
+    }}>
+      {tabs.map(({ href, label, icon }) => {
+        const active = pathname.startsWith(href);
+        return (
+          <Link
+            key={href}
+            href={href}
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 3,
+              textDecoration: 'none',
+              color: active ? 'var(--text)' : 'var(--text3)',
+              padding: '8px 4px',
+              transition: 'color 0.15s',
+            }}
+          >
+            <span style={{ fontSize: 18, lineHeight: 1 }}>{icon}</span>
+            <span style={{ fontSize: 9, fontWeight: 500, letterSpacing: '0.02em' }}>{label}</span>
+          </Link>
+        );
+      })}
     </nav>
   );
 }

@@ -56,8 +56,8 @@ export interface Property {
   lettingAgent?: LettingAgent;
   rentHistory: RentHistoryEntry[];
   keyContacts: KeyContact[];
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // ─── Certificates & Appliances ──────────────────────────────────────────────
@@ -138,8 +138,8 @@ export interface MaintenanceIssue {
   description?: string;
   resolution?: string;
   costToResolve?: number;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // ─── Finance ─────────────────────────────────────────────────────────────────
@@ -171,8 +171,8 @@ export interface Transaction {
   amount: number; // total amount for the period
   description?: string;
   supplier?: string;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // ─── Period filters ───────────────────────────────────────────────────────────

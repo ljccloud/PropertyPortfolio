@@ -110,16 +110,16 @@ export default function MaintenancePage() {
   const totalOpenCost = issues.filter(i => i.status === 'Open' && i.costToResolve).reduce((s, i) => s + (i.costToResolve || 0), 0);
   const openCount = issues.filter(i => i.status === 'Open').length;
 
-  if (loading) return <div className="bg-[#0f1117] min-h-screen"><PageHeader title="Maintenance" /><Spinner /></div>;
+  if (loading) return <div className=" min-h-screen"><PageHeader title="Maintenance" /><Spinner /></div>;
 
   return (
-    <div className="bg-[#0f1117] min-h-screen">
+    <div className=" min-h-screen">
       <PageHeader
         title="Maintenance"
         action={
           <button
             onClick={() => { setEditIssue(null); setForm(emptyForm); setShowModal(true); }}
-            className="flex items-center gap-1.5 bg-[#6c63ff] text-white text-sm font-medium px-3 py-1.5 rounded-xl"
+            className="flex items-center gap-1.5 bg-[#1A1916] text-[#1A1916] text-sm font-medium px-3 py-1.5 rounded-xl"
           >
             <Plus size={16} /> Add
           </button>
@@ -129,10 +129,10 @@ export default function MaintenancePage() {
       <div className="px-4 py-3 space-y-4">
         {/* Summary */}
         {openCount > 0 && (
-          <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 flex items-center justify-between">
+          <div className="bg-[#FAF0E0] border border-[#E8C878] rounded-2xl p-4 flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-amber-400">{openCount} open {openCount === 1 ? 'issue' : 'issues'}</p>
-              {totalOpenCost > 0 && <p className="text-xs text-amber-400/70">Est. cost: {fmt(totalOpenCost)}</p>}
+              <p className="text-sm font-medium text-[#7A4A0A]">{openCount} open {openCount === 1 ? 'issue' : 'issues'}</p>
+              {totalOpenCost > 0 && <p className="text-xs text-[#7A4A0A]/70">Est. cost: {fmt(totalOpenCost)}</p>}
             </div>
           </div>
         )}
@@ -144,7 +144,7 @@ export default function MaintenancePage() {
               key={s}
               onClick={() => setFilterStatus(s)}
               className={`flex-1 text-xs font-medium py-2 rounded-xl transition-all ${
-                filterStatus === s ? 'bg-[#6c63ff] text-white' : 'bg-[#16181f] text-[#8b8fa8] border border-[#1e2130]'
+                filterStatus === s ? 'bg-[#1A1916] text-[#1A1916]' : ' text-[#6B6760] border border-[#E2DDD4]'
               }`}
             >
               {s === 'all' ? 'All' : s}
@@ -216,21 +216,21 @@ function IssueCard({ issue, onEdit, onDelete }: {
             <p className="text-sm font-medium truncate">{issue.issue}</p>
             <Badge label={issue.status} />
           </div>
-          {issue.description && <p className="text-xs text-[#555870] mt-1 line-clamp-2">{issue.description}</p>}
+          {issue.description && <p className="text-xs text-[#A09D98] mt-1 line-clamp-2">{issue.description}</p>}
         </div>
         <div className="flex items-center gap-1 shrink-0 ml-2">
-          <button onClick={() => onEdit(issue)} className="p-1.5 text-[#555870] hover:text-[#6c63ff] rounded-lg">
+          <button onClick={() => onEdit(issue)} className="p-1.5 text-[#A09D98] hover:text-[#1A3A5C] rounded-lg">
             <Pencil size={13} />
           </button>
-          <button onClick={() => onDelete(issue.id)} className="p-1.5 text-[#555870] hover:text-red-400 rounded-lg">
+          <button onClick={() => onDelete(issue.id)} className="p-1.5 text-[#A09D98] hover:text-[#8B2020] rounded-lg">
             <Trash2 size={13} />
           </button>
         </div>
       </div>
-      <div className="flex items-center justify-between text-xs text-[#555870]">
+      <div className="flex items-center justify-between text-xs text-[#A09D98]">
         <span>Raised: {format(parseISO(issue.dateRaised), 'd MMM yyyy')}</span>
         {issue.dateResolved && <span>Resolved: {format(parseISO(issue.dateResolved), 'd MMM yyyy')}</span>}
-        {issue.costToResolve && <span className="text-red-400">{fmt(issue.costToResolve)}</span>}
+        {issue.costToResolve && <span className="text-[#8B2020]">{fmt(issue.costToResolve)}</span>}
       </div>
     </Card>
   );
