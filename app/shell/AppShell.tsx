@@ -127,6 +127,14 @@ export default function AppShell() {
 
   useEffect(() => {
     if (!session) return;
+
+    // If token refresh failed, show re-auth banner
+    if ((session as any).error === 'RefreshAccessTokenError') {
+      setLoading(false);
+      showToast('Your session expired — please sign in again', 'error');
+      return;
+    }
+
     Promise.all([
       fetch('/api/properties').then(r => r.json()),
       fetch('/api/finance').then(r => r.json()),
@@ -138,9 +146,8 @@ export default function AppShell() {
       setMaintenance(m.data || []);
       setDocuments(d.data || []);
       setLoading(false);
-      // Check for Drive access error
-      if (p.error?.includes('401') || p.error?.includes('Unauthorized')) {
-        showToast('Google Drive access error — please sign out and sign in again', 'error');
+      if (p.error) {
+        showToast(`Drive error: ${p.error}`, 'error');
       }
     }).catch(() => {
       setLoading(false);
