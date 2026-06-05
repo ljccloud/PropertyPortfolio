@@ -35,7 +35,6 @@ export default function DocumentModal({ properties, defaultPropertyId, onUpload,
   });
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   function set(key: string, v: any) { setForm(f => ({ ...f, [key]: v })); }
 
@@ -60,6 +59,9 @@ export default function DocumentModal({ properties, defaultPropertyId, onUpload,
 
   const canUpload = !!file && !!form.propertyId && !!form.description.trim();
 
+  // iOS Safari requires the label/input approach for file picking to work
+  const fileInputId = 'doc-file-input-modal';
+
   return (
     <ModalShell title="Upload Document" onClose={onClose}>
       <Field label="Property">
@@ -76,7 +78,8 @@ export default function DocumentModal({ properties, defaultPropertyId, onUpload,
           </select>
         </Field>
         <Field label="Document Date">
-          <input style={inputStyle} type="date" value={form.documentDate} onChange={e => set('documentDate', e.target.value)} />
+          <input style={inputStyle} type="date" value={form.documentDate}
+            onChange={e => set('documentDate', e.target.value)} />
         </Field>
       </Grid2>
 
@@ -96,10 +99,12 @@ export default function DocumentModal({ properties, defaultPropertyId, onUpload,
           </Field>
           <Grid2>
             <Field label="Issue Date">
-              <input style={inputStyle} type="date" value={form.issueDate} onChange={e => set('issueDate', e.target.value)} />
+              <input style={inputStyle} type="date" value={form.issueDate}
+                onChange={e => set('issueDate', e.target.value)} />
             </Field>
             <Field label="Expiry Date">
-              <input style={inputStyle} type="date" value={form.expiryDate} onChange={e => set('expiryDate', e.target.value)} />
+              <input style={inputStyle} type="date" value={form.expiryDate}
+                onChange={e => set('expiryDate', e.target.value)} />
               <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
                 <button onClick={() => setExpiryPreset(1)} style={{ flex: 1, padding: 5, fontSize: 11, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface)', cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text2)' }}>+ 1 year</button>
                 <button onClick={() => setExpiryPreset(5)} style={{ flex: 1, padding: 5, fontSize: 11, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface)', cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text2)' }}>+ 5 years</button>
@@ -107,7 +112,8 @@ export default function DocumentModal({ properties, defaultPropertyId, onUpload,
             </Field>
           </Grid2>
           <Field label="Issuer Notes">
-            <input style={inputStyle} type="text" value={form.issuerNotes} onChange={e => set('issuerNotes', e.target.value)} />
+            <input style={inputStyle} type="text" value={form.issuerNotes}
+              onChange={e => set('issuerNotes', e.target.value)} />
           </Field>
         </div>
       )}
@@ -117,48 +123,81 @@ export default function DocumentModal({ properties, defaultPropertyId, onUpload,
         <div style={{ background: 'var(--surface2)', borderRadius: 'var(--radius-sm)', padding: '12px 14px', marginBottom: 12 }}>
           <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 10 }}>Appliance Details</div>
           <Field label="Name">
-            <input style={inputStyle} type="text" value={form.applianceName} onChange={e => set('applianceName', e.target.value)} placeholder="e.g. Boiler" />
+            <input style={inputStyle} type="text" value={form.applianceName}
+              onChange={e => set('applianceName', e.target.value)} placeholder="e.g. Boiler" />
           </Field>
           <Grid2>
             <Field label="Make">
-              <input style={inputStyle} type="text" value={form.applianceMake} onChange={e => set('applianceMake', e.target.value)} />
+              <input style={inputStyle} type="text" value={form.applianceMake}
+                onChange={e => set('applianceMake', e.target.value)} />
             </Field>
             <Field label="Model">
-              <input style={inputStyle} type="text" value={form.applianceModel} onChange={e => set('applianceModel', e.target.value)} />
+              <input style={inputStyle} type="text" value={form.applianceModel}
+                onChange={e => set('applianceModel', e.target.value)} />
             </Field>
           </Grid2>
           <Field label="Serial Number">
-            <input style={inputStyle} type="text" value={form.applianceSerial} onChange={e => set('applianceSerial', e.target.value)} />
+            <input style={inputStyle} type="text" value={form.applianceSerial}
+              onChange={e => set('applianceSerial', e.target.value)} />
           </Field>
           <Grid2>
             <Field label="Purchase Date">
-              <input style={inputStyle} type="date" value={form.appliancePurchaseDate} onChange={e => set('appliancePurchaseDate', e.target.value)} />
+              <input style={inputStyle} type="date" value={form.appliancePurchaseDate}
+                onChange={e => set('appliancePurchaseDate', e.target.value)} />
             </Field>
             <Field label="Warranty End">
-              <input style={inputStyle} type="date" value={form.warrantyEndDate} onChange={e => set('warrantyEndDate', e.target.value)} />
+              <input style={inputStyle} type="date" value={form.warrantyEndDate}
+                onChange={e => set('warrantyEndDate', e.target.value)} />
             </Field>
           </Grid2>
           <Field label="Notes">
-            <textarea style={{ ...inputStyle, resize: 'none' }} rows={2} value={form.applianceNotes} onChange={e => set('applianceNotes', e.target.value)} />
+            <textarea style={{ ...inputStyle, resize: 'none' }} rows={2} value={form.applianceNotes}
+              onChange={e => set('applianceNotes', e.target.value)} />
           </Field>
         </div>
       )}
 
-      {/* File picker */}
-      <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-        style={{ display: 'none' }} onChange={e => setFile(e.target.files?.[0] || null)} />
-      <div onClick={() => fileRef.current?.click()}
-        style={{ border: '1.5px dashed var(--border2)', borderRadius: 'var(--radius)', padding: '24px 16px', textAlign: 'center', cursor: 'pointer', background: 'var(--surface2)', marginBottom: 12 }}>
-        <div style={{ fontSize: 14, color: 'var(--text2)', fontWeight: 500, marginBottom: 4 }}>
-          {file ? file.name : 'Tap to choose file'}
-        </div>
-        <div style={{ fontSize: 12, color: 'var(--text3)' }}>PDF, JPG, PNG or Word</div>
+      {/* File picker — use label+input pattern for iOS Safari compatibility */}
+      <div style={{ marginBottom: 12 }}>
+        <input
+          id={fileInputId}
+          type="file"
+          accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+          onChange={e => setFile(e.target.files?.[0] || null)}
+          style={{
+            // Visible but styled — iOS requires the input to be directly interactable
+            width: '100%',
+            padding: '10px 12px',
+            border: '1.5px dashed var(--border2)',
+            borderRadius: 'var(--radius)',
+            background: 'var(--surface2)',
+            fontFamily: 'inherit',
+            fontSize: 13,
+            color: 'var(--text2)',
+            cursor: 'pointer',
+            boxSizing: 'border-box',
+          }}
+        />
+        {file && (
+          <div style={{ marginTop: 6, fontSize: 13, color: 'var(--green)', fontWeight: 500 }}>
+            ✓ {file.name}
+          </div>
+        )}
       </div>
 
-      <button onClick={handleUpload} disabled={uploading || !canUpload}
-        style={{ ...btnPrimary, opacity: uploading || !canUpload ? 0.6 : 1 }}>
+      <button
+        onClick={handleUpload}
+        disabled={uploading || !canUpload}
+        style={{ ...btnPrimary, opacity: uploading || !canUpload ? 0.6 : 1 }}
+      >
         {uploading ? 'Uploading to Drive…' : 'Upload Document'}
       </button>
+
+      {!canUpload && !uploading && (
+        <p style={{ fontSize: 12, color: 'var(--text3)', textAlign: 'center', marginTop: 8 }}>
+          {!form.propertyId ? 'Select a property' : !form.description.trim() ? 'Add a description' : 'Choose a file to upload'}
+        </p>
+      )}
     </ModalShell>
   );
 }
