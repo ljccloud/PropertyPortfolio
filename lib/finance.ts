@@ -97,27 +97,36 @@ export function prorateTransaction(
   transaction: Transaction,
   queryRange: DateRange
 ): number {
-  // Parse transaction bounds — always treat as full days
   const txStart = new Date(transaction.dateStart + 'T00:00:00');
   const txEnd = transaction.dateEnd
-    ? new Date(transaction.dateEnd + 'T23:59:59')
-    : new Date(transaction.dateStart + 'T23:59:59'); // single-day
+    ? new Date(transaction.dateEnd + 'T00:00:00')
+    : new Date(transaction.dateStart + 'T00:00:00');
 
-  // No overlap at all
-  if (txEnd < queryRange.from || txStart > queryRange.to) return 0;
+  // Strip time from range bounds — work in pure calendar days throughout
+  // This prevents mixed T00:00:00 vs T23:59:59 timestamps causing off-by-one errors
+  const rangeFrom = new Date(
+    queryRange.from.getFullYear(),
+    queryRange.from.getMonth(),
+    queryRange.from.getDate()
+  );
+  const rangeTo = new Date(
+    queryRange.to.getFullYear(),
+    queryRange.to.getMonth(),
+    queryRange.to.getDate()
+  );
 
-  // Single-day transaction: either in range or not
+  if (txEnd < rangeFrom || txStart > rangeTo) return 0;
+
+  // Single-day transaction
   if (!transaction.dateEnd || transaction.dateStart === transaction.dateEnd) {
-    return txStart >= queryRange.from && txStart <= queryRange.to
-      ? transaction.amount
-      : 0;
+    return txStart >= rangeFrom && txStart <= rangeTo ? transaction.amount : 0;
   }
 
-  // Multi-day: calculate overlap using Math.round to avoid float drift
+  // Multi-day: all dates now at T00:00:00 so division is clean
   const totalDays = Math.round((txEnd.getTime() - txStart.getTime()) / 86400000) + 1;
 
-  const overlapStart = txStart < queryRange.from ? queryRange.from : txStart;
-  const overlapEnd = txEnd > queryRange.to ? queryRange.to : txEnd;
+  const overlapStart = txStart < rangeFrom ? rangeFrom : txStart;
+  const overlapEnd   = txEnd   > rangeTo   ? rangeTo   : txEnd;
 
   if (overlapStart > overlapEnd) return 0;
 

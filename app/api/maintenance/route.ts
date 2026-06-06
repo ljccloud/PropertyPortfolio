@@ -12,7 +12,7 @@ async function getSession() {
 
 async function getIssues(accessToken: string): Promise<MaintenanceIssue[]> {
   const drive = getDriveClient(accessToken);
-  const folderId = await getDataFolderId(drive);
+  const folderId = await getDataFolderId(drive, accessToken);
   const data = await readJsonFile<MaintenanceIssue[]>(drive, 'maintenance.json', folderId);
   return data || [];
 }
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const drive = getDriveClient(session.accessToken);
-    const folderId = await getDataFolderId(drive);
+    const folderId = await getDataFolderId(drive, session.accessToken);
     const issues = await getIssues(session.accessToken);
     const newIssue: MaintenanceIssue = {
       id: uuid(), ...body,
@@ -62,7 +62,7 @@ export async function PUT(req: NextRequest) {
     const body = await req.json();
     const { id, ...updates } = body;
     const drive = getDriveClient(session.accessToken);
-    const folderId = await getDataFolderId(drive);
+    const folderId = await getDataFolderId(drive, session.accessToken);
     const issues = await getIssues(session.accessToken);
     const idx = issues.findIndex(i => i.id === id);
     if (idx === -1) return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -86,7 +86,7 @@ export async function DELETE(req: NextRequest) {
   try {
     const { id } = await req.json();
     const drive = getDriveClient(session.accessToken);
-    const folderId = await getDataFolderId(drive);
+    const folderId = await getDataFolderId(drive, session.accessToken);
     const issues = await getIssues(session.accessToken);
     const filtered = issues.filter(i => i.id !== id);
     await writeJsonFile(drive, 'maintenance.json', folderId, filtered);

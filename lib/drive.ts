@@ -1,10 +1,8 @@
 import { google } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
 
-const ROOT_FOLDER_NAME = 'Portfolio App';
+const ROOT_FOLDER_NAME = 'PropertyPortfolio';
 const DATA_FOLDER_NAME = 'data';
-
-let driveClient: ReturnType<typeof google.drive> | null = null;
 
 export function getDriveClient(accessToken: string) {
   const auth = new OAuth2Client(
@@ -16,25 +14,50 @@ export function getDriveClient(accessToken: string) {
 }
 
 // ─── Folder helpers ───────────────────────────────────────────────────────────
+// findFolder only searches — never creates. This is safe to call in parallel.
+// ensureFolder searches first, and only creates if genuinely nothing found.
+// By separating find from create we prevent the race condition where multiple
+// simultaneous requests each find nothing and each create a new folder.
 
-export async function findOrCreateFolder(
+async function findFolder(
   drive: ReturnType<typeof google.drive>,
   name: string,
   parentId?: string
-): Promise<string> {
-  const query = parentId
+): Promise<string | null> {
+  const q = parentId
     ? `name='${name}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`
     : `name='${name}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
 
   const res = await drive.files.list({
-    q: query,
-    fields: 'files(id, name)',
+    q,
+    fields: 'files(id)',
+    spaces: 'drive',
+    pageSize: 10, // get all matches so we can deduplicate
   });
 
-  if (res.data.files && res.data.files.length > 0) {
-    return res.data.files[0].id!;
+  if (!res.data.files || res.data.files.length === 0) return null;
+
+  // If multiple exist (from a previous race condition), clean up extras
+  if (res.data.files.length > 1) {
+    // Keep the first, trash the rest
+    for (let i = 1; i < res.data.files.length; i++) {
+      try {
+        await drive.files.update({
+          fileId: res.data.files[i].id!,
+          requestBody: { trashed: true },
+        });
+      } catch { /* ignore cleanup errors */ }
+    }
   }
 
+  return res.data.files[0].id!;
+}
+
+async function createFolder(
+  drive: ReturnType<typeof google.drive>,
+  name: string,
+  parentId?: string
+): Promise<string> {
   const folder = await drive.files.create({
     requestBody: {
       name,
@@ -43,34 +66,46 @@ export async function findOrCreateFolder(
     },
     fields: 'id',
   });
-
   return folder.data.id!;
+}
+
+// ensureFolder: find existing OR create. Called sequentially to avoid races.
+async function ensureFolder(
+  drive: ReturnType<typeof google.drive>,
+  name: string,
+  parentId?: string
+): Promise<string> {
+  const existing = await findFolder(drive, name, parentId);
+  if (existing) return existing;
+  return createFolder(drive, name, parentId);
 }
 
 export async function getRootFolderId(
   drive: ReturnType<typeof google.drive>
 ): Promise<string> {
-  return findOrCreateFolder(drive, ROOT_FOLDER_NAME);
+  return ensureFolder(drive, ROOT_FOLDER_NAME);
 }
 
 export async function getDataFolderId(
-  drive: ReturnType<typeof google.drive>
+  drive: ReturnType<typeof google.drive>,
+  _accessToken?: string // kept for API compatibility
 ): Promise<string> {
   const rootId = await getRootFolderId(drive);
-  return findOrCreateFolder(drive, DATA_FOLDER_NAME, rootId);
+  return ensureFolder(drive, DATA_FOLDER_NAME, rootId);
 }
 
 export async function getPropertyFolderId(
   drive: ReturnType<typeof google.drive>,
-  propertyAddress: string
+  propertyAddress: string,
+  _accessToken?: string // kept for API compatibility
 ): Promise<string> {
   const rootId = await getRootFolderId(drive);
-  const folderName = propertyAddress.split(' ')[0].replace(/[^a-zA-Z0-9]/g, '');
-  return findOrCreateFolder(drive, folderName, rootId);
+  const words = propertyAddress.replace(/[^a-zA-Z0-9 ]/g, '').trim().split(/\s+/);
+  const folderName = words.find(w => isNaN(Number(w))) || words[0] || 'Property';
+  return ensureFolder(drive, folderName, rootId);
 }
 
-// ─── File naming convention ────────────────────────────────────────────────
-// Format: FirstWordAddress_YYMM_Category_FirstWordDescription
+// ─── File naming convention ───────────────────────────────────────────────────
 
 export function buildFileName(
   propertyAddress: string,
@@ -79,12 +114,13 @@ export function buildFileName(
   documentDate: string,
   originalExtension: string
 ): string {
-  const firstWordAddress = propertyAddress.split(' ')[0].replace(/[^a-zA-Z0-9]/g, '');
-  const date = new Date(documentDate);
+  const words = propertyAddress.replace(/[^a-zA-Z0-9 ]/g, '').split(/\s+/);
+  const firstWord = words.find(w => isNaN(Number(w))) || words[0] || 'Property';
+  const date = new Date(documentDate + 'T00:00:00');
   const yymm = `${String(date.getFullYear()).slice(2)}${String(date.getMonth() + 1).padStart(2, '0')}`;
   const cat = category.replace(/\s+/g, '');
-  const firstWordDesc = description.split(' ')[0].replace(/[^a-zA-Z0-9]/g, '');
-  return `${firstWordAddress}_${yymm}_${cat}_${firstWordDesc}${originalExtension}`;
+  const firstWordDesc = description.trim().split(/\s+/)[0].replace(/[^a-zA-Z0-9]/g, '');
+  return `${firstWord}_${yymm}_${cat}_${firstWordDesc}${originalExtension}`;
 }
 
 // ─── JSON data helpers ────────────────────────────────────────────────────────
@@ -97,6 +133,7 @@ export async function readJsonFile<T>(
   const res = await drive.files.list({
     q: `name='${fileName}' and '${folderId}' in parents and trashed=false`,
     fields: 'files(id)',
+    spaces: 'drive',
   });
 
   if (!res.data.files || res.data.files.length === 0) return null;
@@ -116,38 +153,26 @@ export async function writeJsonFile<T>(
   folderId: string,
   data: T
 ): Promise<void> {
-  // Check if file exists
   const res = await drive.files.list({
     q: `name='${fileName}' and '${folderId}' in parents and trashed=false`,
     fields: 'files(id)',
+    spaces: 'drive',
   });
 
   const content = JSON.stringify(data, null, 2);
-  const media = {
-    mimeType: 'application/json',
-    body: content,
-  };
+  const media = { mimeType: 'application/json', body: content };
 
   if (res.data.files && res.data.files.length > 0) {
-    // Update existing
-    await drive.files.update({
-      fileId: res.data.files[0].id!,
-      media,
-    });
+    await drive.files.update({ fileId: res.data.files[0].id!, media });
   } else {
-    // Create new
     await drive.files.create({
-      requestBody: {
-        name: fileName,
-        parents: [folderId],
-        mimeType: 'application/json',
-      },
+      requestBody: { name: fileName, parents: [folderId], mimeType: 'application/json' },
       media,
     });
   }
 }
 
-// ─── Upload a real file ────────────────────────────────────────────────────
+// ─── Upload a real file ───────────────────────────────────────────────────────
 
 export async function uploadFile(
   drive: ReturnType<typeof google.drive>,
@@ -160,24 +185,14 @@ export async function uploadFile(
   const stream = Readable.from(fileBuffer);
 
   const res = await drive.files.create({
-    requestBody: {
-      name: fileName,
-      parents: [folderId],
-    },
-    media: {
-      mimeType,
-      body: stream,
-    },
+    requestBody: { name: fileName, parents: [folderId] },
+    media: { mimeType, body: stream },
     fields: 'id, webViewLink',
   });
 
-  // Make it viewable by anyone with the link
   await drive.permissions.create({
     fileId: res.data.id!,
-    requestBody: {
-      role: 'reader',
-      type: 'anyone',
-    },
+    requestBody: { role: 'reader', type: 'anyone' },
   });
 
   return {

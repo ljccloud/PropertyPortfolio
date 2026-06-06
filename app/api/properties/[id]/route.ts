@@ -17,7 +17,7 @@ export async function GET(_: NextRequest, { params }: Params) {
   if (!session?.accessToken) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   try {
     const drive = getDriveClient(session.accessToken);
-    const folderId = await getDataFolderId(drive);
+    const folderId = await getDataFolderId(drive, session.accessToken);
     const properties = await readJsonFile<Property[]>(drive, 'properties.json', folderId) || [];
     const property = properties.find(p => p.id === id);
     if (!property) return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -35,7 +35,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
   try {
     const body = await req.json();
     const drive = getDriveClient(session.accessToken);
-    const folderId = await getDataFolderId(drive);
+    const folderId = await getDataFolderId(drive, session.accessToken);
     const properties = await readJsonFile<Property[]>(drive, 'properties.json', folderId) || [];
     const idx = properties.findIndex(p => p.id === id);
     if (idx === -1) return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -54,7 +54,7 @@ export async function DELETE(_: NextRequest, { params }: Params) {
   if (!session?.accessToken) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   try {
     const drive = getDriveClient(session.accessToken);
-    const folderId = await getDataFolderId(drive);
+    const folderId = await getDataFolderId(drive, session.accessToken);
     const properties = await readJsonFile<Property[]>(drive, 'properties.json', folderId) || [];
     const filtered = properties.filter(p => p.id !== id);
     await writeJsonFile(drive, 'properties.json', folderId, filtered);

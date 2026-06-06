@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
     const custom: CustomPeriod | undefined = customFrom && customTo ? { from: customFrom, to: customTo } : undefined;
 
     const drive = getDriveClient(session.accessToken);
-    const folderId = await getDataFolderId(drive);
+    const folderId = await getDataFolderId(drive, session.accessToken);
     const transactions = await readJsonFile<Transaction[]>(drive, 'transactions.json', folderId) || [];
     const period = resolvePeriod(filter, custom);
     const csv = exportToCsv(transactions, period);

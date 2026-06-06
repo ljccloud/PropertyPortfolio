@@ -54,15 +54,25 @@ function getPeriod(period: string, customFrom?: string, customTo?: string): { st
 }
 function apportionAmount(tx: Transaction, start: Date, end: Date): number {
   const txStart = new Date(tx.dateStart + 'T00:00:00');
-  const txEnd = tx.dateEnd ? new Date(tx.dateEnd + 'T23:59:59') : new Date(tx.dateStart + 'T23:59:59');
-  if (txEnd < start || txStart > end) return 0;
+  const txEnd = tx.dateEnd
+    ? new Date(tx.dateEnd + 'T00:00:00')
+    : new Date(tx.dateStart + 'T00:00:00');
+
+  // Strip time from range bounds — work in pure calendar days throughout
+  const rangeFrom = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  const rangeTo   = new Date(end.getFullYear(),   end.getMonth(),   end.getDate());
+
+  if (txEnd < rangeFrom || txStart > rangeTo) return 0;
+
   if (!tx.dateEnd || tx.dateStart === tx.dateEnd) {
-    return (txStart >= start && txStart <= end) ? tx.amount : 0;
+    return (txStart >= rangeFrom && txStart <= rangeTo) ? tx.amount : 0;
   }
-  const totalDays = Math.round((txEnd.getTime() - txStart.getTime()) / 86400000) + 1;
-  const os = txStart < start ? start : txStart;
-  const oe = txEnd > end ? end : txEnd;
+
+  const totalDays   = Math.round((txEnd.getTime() - txStart.getTime()) / 86400000) + 1;
+  const os = txStart < rangeFrom ? rangeFrom : txStart;
+  const oe = txEnd   > rangeTo   ? rangeTo   : txEnd;
   if (os > oe) return 0;
+
   const overlapDays = Math.round((oe.getTime() - os.getTime()) / 86400000) + 1;
   return (tx.amount * overlapDays) / totalDays;
 }
@@ -135,24 +145,27 @@ export default function AppShell() {
       return;
     }
 
-    Promise.all([
-      fetch('/api/properties').then(r => r.json()),
-      fetch('/api/finance').then(r => r.json()),
-      fetch('/api/maintenance').then(r => r.json()),
-      fetch('/api/documents').then(r => r.json()),
-    ]).then(([p, f, m, d]) => {
-      setProperties(p.data || []);
-      setTransactions(f.data || []);
-      setMaintenance(m.data || []);
-      setDocuments(d.data || []);
-      setLoading(false);
-      if (p.error) {
-        showToast(`Drive error: ${p.error}`, 'error');
-      }
-    }).catch(() => {
-      setLoading(false);
-      showToast('Failed to load data — check your connection', 'error');
-    });
+    // Use single init endpoint to avoid parallel race condition
+    // that caused duplicate 'data' folders in Google Drive
+    fetch('/api/init')
+      .then(r => r.json())
+      .then(res => {
+        if (res.error) {
+          showToast(`Drive error: ${res.error}`, 'error');
+          setLoading(false);
+          return;
+        }
+        const { properties, transactions, maintenance, documents } = res.data;
+        setProperties(properties || []);
+        setTransactions(transactions || []);
+        setMaintenance(maintenance || []);
+        setDocuments(documents || []);
+        setLoading(false);
+      })
+      .catch(() => {
+        setLoading(false);
+        showToast('Failed to load data — check your connection', 'error');
+      });
   }, [session]);
 
   const { start, end, label } = getPeriod(period, customFrom, customTo);

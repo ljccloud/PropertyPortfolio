@@ -23,8 +23,8 @@ export async function POST(req: NextRequest) {
     if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 });
 
     const drive = getDriveClient(session.accessToken);
-    const dataFolderId = await getDataFolderId(drive);
-    const propFolderId = await getPropertyFolderId(drive, metadata.propertyAddress);
+    const dataFolderId = await getDataFolderId(drive, session.accessToken);
+    const propFolderId = await getPropertyFolderId(drive, metadata.propertyAddress, session.accessToken);
 
     const ext = '.' + (file.name.split('.').pop() || 'pdf');
     const fileName = buildFileName(
