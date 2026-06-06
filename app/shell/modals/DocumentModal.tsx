@@ -25,6 +25,7 @@ export default function DocumentModal({ properties, defaultPropertyId, onUpload,
     issueDate: '',
     expiryDate: '',
     issuerNotes: '',
+    epcRating: '',
     applianceName: '',
     applianceMake: '',
     applianceModel: '',
@@ -97,6 +98,16 @@ export default function DocumentModal({ properties, defaultPropertyId, onUpload,
               {CERT_TYPES.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </Field>
+          {form.certificateType === 'EPC' && (
+            <Field label="EPC Rating">
+              <select style={selectStyle} value={form.epcRating} onChange={e => set('epcRating', e.target.value)}>
+                <option value="">Select rating…</option>
+                {['A','B','C','D','E','F','G'].map(r => (
+                  <option key={r} value={r}>Band {r}</option>
+                ))}
+              </select>
+            </Field>
+          )}
           <Grid2>
             <Field label="Issue Date">
               <input style={inputStyle} type="date" value={form.issueDate}

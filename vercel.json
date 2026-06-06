@@ -3,7 +3,9 @@
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
   "installCommand": "npm install",
-  "env": {
-    "NEXTAUTH_URL": "https://your-app.vercel.app"
+  "functions": {
+    "app/api/**": {
+      "maxDuration": 60
+    }
   }
 }

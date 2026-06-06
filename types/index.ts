@@ -113,6 +113,7 @@ export interface Document {
   issueDate?: string;
   expiryDate?: string;
   issuerNotes?: string;
+  epcRating?: string; // e.g. 'A', 'B', 'C', 'D', 'E', 'F', 'G'
   // Appliance extras
   applianceName?: string;
   applianceMake?: string;

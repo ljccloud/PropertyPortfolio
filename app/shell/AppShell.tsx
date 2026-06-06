@@ -15,7 +15,7 @@ interface Tenant { id: string; name: string; email: string; phone: string; lease
 interface Property { id: string; address: string; reference?: string; purchasePrice?: number; purchaseDate?: string; currentValue?: number; owners: Owner[]; tenant?: Tenant; lettingAgent?: any; rentHistory: any[]; keyContacts: any[]; }
 interface Transaction { id: string; propertyId: string; propertyAddress: string; type: 'income' | 'expense'; category: string; dateStart: string; dateEnd?: string; amount: number; description?: string; supplier?: string; }
 interface MaintenanceIssue { id: string; propertyId: string; propertyAddress: string; issue: string; dateRaised: string; dateResolved?: string; status: 'Open' | 'Closed'; description?: string; resolution?: string; costToResolve?: number; }
-interface Document { id: string; propertyId: string; propertyAddress: string; category: string; documentDate: string; description: string; driveViewLink: string; driveFileName: string; certificateType?: string; expiryDate?: string; issueDate?: string; applianceName?: string; applianceMake?: string; applianceModel?: string; applianceSerial?: string; }
+interface Document { id: string; propertyId: string; propertyAddress: string; category: string; documentDate: string; description: string; driveViewLink: string; driveFileName: string; certificateType?: string; expiryDate?: string; issueDate?: string; epcRating?: string; applianceName?: string; applianceMake?: string; applianceModel?: string; applianceSerial?: string; }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmt(n: number) { return '£' + Math.abs(n).toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 0 }); }
@@ -25,7 +25,7 @@ function fmtDate(d?: string) {
 }
 function daysUntil(d?: string) { if (!d) return null; try { return differenceInDays(parseISO(d), new Date()); } catch { return null; } }
 function certStatus(expiry?: string) { const d = daysUntil(expiry); if (d === null) return 'grey'; if (d < 0) return 'red'; if (d < 60) return 'amber'; return 'green'; }
-function certLabel(expiry?: string) { const d = daysUntil(expiry); if (d === null) return 'Missing'; if (d < 0) return 'Expired'; if (d < 60) return `${d}d left`; return 'Valid'; }
+function certLabel(expiry?: string) { const d = daysUntil(expiry); if (d === null) return 'Missing'; if (d < 0) return 'Expired'; if (d < 60) return `${d}d`; return fmtDate(expiry); }
 function certBadgeStyle(status: string): React.CSSProperties {
   const map: Record<string, [string, string]> = { green: ['var(--green-bg)', 'var(--green)'], amber: ['var(--amber-bg)', 'var(--amber)'], red: ['var(--red-bg)', 'var(--red)'], grey: ['var(--surface2)', 'var(--text3)'] };
   const [bg, color] = map[status] || map.grey;
@@ -202,13 +202,18 @@ export default function AppShell() {
         body: JSON.stringify(data),
       });
       const json = await res.json();
-      if (!res.ok || json.error) throw new Error(json.error || `HTTP ${res.status}`);
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
       const saved = json.data;
-      setProperties(ps => isNew ? [...ps, saved] : ps.map(p => p.id === saved.id ? saved : p));
-      showToast(isNew ? 'Property added' : 'Property saved');
+      if (saved) {
+        setProperties(ps => isNew ? [...ps, saved] : ps.map(p => p.id === saved.id ? saved : p));
+        showToast(isNew ? 'Property added' : 'Property saved');
+      }
       return saved;
     } catch (e: any) {
-      showToast(`Failed to save property: ${e.message}`, 'error');
+      // Only show error if it's a real failure (not a component unmount race)
+      if (e.message && !e.message.includes('unmount') && !e.message.includes('cancel')) {
+        showToast(`Save failed: ${e.message}`, 'error');
+      }
       throw e;
     }
   }
@@ -216,7 +221,13 @@ export default function AppShell() {
   async function savePropertyPatch(propId: string, patch: Partial<Property>) {
     const prop = properties.find(p => p.id === propId);
     if (!prop) return;
-    await saveProperty({ ...prop, ...patch });
+    // saveProperty already shows 'Property saved' toast on success
+    // and shows error toast on failure — no need to add more here
+    try {
+      await saveProperty({ ...prop, ...patch });
+    } catch {
+      // error already shown via saveProperty's catch block
+    }
   }
 
   async function saveTxn(data: any) {
@@ -228,7 +239,8 @@ export default function AppShell() {
         body: JSON.stringify(data),
       });
       const json = await res.json();
-      if (!res.ok || json.error) throw new Error(json.error || `HTTP ${res.status}`);
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      if (json.error && !json.data) throw new Error(json.error);
       const saved = json.data;
       setTransactions(ts => isNew ? [...ts, saved] : ts.map(t => t.id === saved.id ? saved : t));
       showToast('Transaction saved');
@@ -252,7 +264,8 @@ export default function AppShell() {
         body: JSON.stringify(isNew ? data : { id: data.id, ...data }),
       });
       const json = await res.json();
-      if (!res.ok || json.error) throw new Error(json.error || `HTTP ${res.status}`);
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      if (json.error && !json.data) throw new Error(json.error);
       const saved = json.data;
       setMaintenance(ms => isNew ? [...ms, saved] : ms.map(m => m.id === saved.id ? saved : m));
       showToast('Issue saved');
@@ -271,7 +284,8 @@ export default function AppShell() {
     try {
       const res = await fetch('/api/documents/upload', { method: 'POST', body: formData });
       const json = await res.json();
-      if (!res.ok || json.error) throw new Error(json.error || `HTTP ${res.status}`);
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      if (json.error && !json.data) throw new Error(json.error);
       if (json.data) setDocuments(ds => [...ds, json.data]);
       showToast('Document uploaded');
     } catch (e: any) {
@@ -398,10 +412,17 @@ export default function AppShell() {
             function CertCell({ type, label }: { type: string; label: string }) {
               const cert = propCertDocs.find(d => d.certificateType === type);
               const st = certStatus(cert?.expiryDate);
+              // For EPC: show "Band X · expiry" or just "Band X" if no expiry
+              // For others: show expiry date or status
+              const displayText = type === 'EPC' && cert?.epcRating
+                ? cert.expiryDate
+                  ? `${cert.epcRating} · ${fmtDate(cert.expiryDate)}`
+                  : `Band ${cert.epcRating}`
+                : certLabel(cert?.expiryDate);
               return (
-                <div style={{ flex: 1 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 3 }}>{label}</div>
-                  <span style={certBadgeStyle(st)}>{certLabel(cert?.expiryDate)}</span>
+                  <span style={{ ...certBadgeStyle(st), fontSize: 10, whiteSpace: 'nowrap', overflow: 'hidden', display: 'inline-block', maxWidth: '100%', textOverflow: 'ellipsis' }}>{displayText}</span>
                 </div>
               );
             }
@@ -540,10 +561,12 @@ export default function AppShell() {
                   <div style={card}>
                     <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Rent History</div>
                     {[...p.rentHistory].sort((a: any, b: any) => (b.dateFrom || '').localeCompare(a.dateFrom || '')).map((r: any) => (
-                      <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '8px 0', borderBottom: '1px solid var(--border)', gap: 8, fontSize: 13 }}>
+                      <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '90px 1fr', alignItems: 'baseline', padding: '8px 0', borderBottom: '1px solid var(--border)', gap: 8, fontSize: 13 }}>
                         <span style={{ fontWeight: 500 }}>{fmt(r.amount)}</span>
-                        <span style={{ color: 'var(--text2)' }}>{fmtDate(r.dateFrom)} → {r.dateTo ? fmtDate(r.dateTo) : 'Present'}</span>
-                        {r.notes && <span style={{ color: 'var(--text3)', fontSize: 12 }}>{r.notes}</span>}
+                        <div>
+                          <span style={{ color: 'var(--text2)' }}>{fmtDate(r.dateFrom)} → {r.dateTo ? fmtDate(r.dateTo) : 'Present'}</span>
+                          {r.notes && <span style={{ color: 'var(--text3)', fontSize: 12, display: 'block', marginTop: 2 }}>{r.notes}</span>}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -577,8 +600,15 @@ export default function AppShell() {
                 {propDocs.filter(d => d.category === 'Certificates').map(d => (
                   <div key={d.id} style={{ ...card, display: 'flex', alignItems: 'center', gap: 12 }}>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 14, fontWeight: 500 }}>{d.certificateType}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>Issued {fmtDate(d.issueDate)} · Expires {fmtDate(d.expiryDate)}</div>
+                      <div style={{ fontSize: 14, fontWeight: 500 }}>
+                        {d.certificateType}
+                        {d.certificateType === 'EPC' && d.epcRating && (
+                          <span style={{ marginLeft: 8, fontSize: 12, fontWeight: 600, padding: '1px 7px', borderRadius: 20, background: 'var(--blue-bg)', color: 'var(--blue)' }}>Band {d.epcRating}</span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>
+                        Issued {fmtDate(d.issueDate)} · Expires {fmtDate(d.expiryDate)}
+                      </div>
                     </div>
                     <span style={certBadgeStyle(certStatus(d.expiryDate))}>{certLabel(d.expiryDate)}</span>
                     <a href={d.driveViewLink} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--blue)', fontSize: 18, textDecoration: 'none' }}>↗</a>

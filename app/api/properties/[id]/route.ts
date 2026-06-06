@@ -41,6 +41,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
     if (idx === -1) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     properties[idx] = { ...properties[idx], ...body, id, updatedAt: new Date().toISOString() };
     await writeJsonFile(drive, 'properties.json', folderId, properties);
+    console.log(`PUT /api/properties/${id} success, returning data for:`, properties[idx].address);
     return NextResponse.json({ data: properties[idx] });
   } catch (e: any) {
     console.error(`PUT /api/properties/${id} error:`, e.message);
