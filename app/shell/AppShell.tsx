@@ -240,10 +240,11 @@ export default function AppShell() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
-      if (json.error && !json.data) throw new Error(json.error);
       const saved = json.data;
-      setTransactions(ts => isNew ? [...ts, saved] : ts.map(t => t.id === saved.id ? saved : t));
-      showToast('Transaction saved');
+      if (saved) {
+        setTransactions(ts => isNew ? [...ts, saved] : ts.map(t => t.id === saved.id ? saved : t));
+        showToast('Transaction saved');
+      }
     } catch (e: any) {
       showToast(`Failed to save transaction: ${e.message}`, 'error');
       throw e;
@@ -265,12 +266,15 @@ export default function AppShell() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
-      if (json.error && !json.data) throw new Error(json.error);
       const saved = json.data;
-      setMaintenance(ms => isNew ? [...ms, saved] : ms.map(m => m.id === saved.id ? saved : m));
-      showToast('Issue saved');
+      if (saved) {
+        setMaintenance(ms => isNew ? [...ms, saved] : ms.map(m => m.id === saved.id ? saved : m));
+        showToast('Issue saved');
+      }
     } catch (e: any) {
-      showToast(`Failed to save issue: ${e.message}`, 'error');
+      if (e.message && !e.message.includes('unmount')) {
+        showToast(`Failed to save issue: ${e.message}`, 'error');
+      }
       throw e;
     }
   }
@@ -561,12 +565,13 @@ export default function AppShell() {
                   <div style={card}>
                     <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Rent History</div>
                     {[...p.rentHistory].sort((a: any, b: any) => (b.dateFrom || '').localeCompare(a.dateFrom || '')).map((r: any) => (
-                      <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '90px 1fr', alignItems: 'baseline', padding: '8px 0', borderBottom: '1px solid var(--border)', gap: 8, fontSize: 13 }}>
+                      <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '80px 1fr auto', alignItems: 'baseline', padding: '8px 0', borderBottom: '1px solid var(--border)', gap: 8, fontSize: 13 }}>
                         <span style={{ fontWeight: 500 }}>{fmt(r.amount)}</span>
-                        <div>
-                          <span style={{ color: 'var(--text2)' }}>{fmtDate(r.dateFrom)} → {r.dateTo ? fmtDate(r.dateTo) : 'Present'}</span>
-                          {r.notes && <span style={{ color: 'var(--text3)', fontSize: 12, display: 'block', marginTop: 2 }}>{r.notes}</span>}
-                        </div>
+                        <span style={{ color: 'var(--text2)' }}>{fmtDate(r.dateFrom)} → {r.dateTo ? fmtDate(r.dateTo) : 'Present'}</span>
+                        {r.notes
+                          ? <span style={{ color: 'var(--text3)', fontSize: 12, textAlign: 'right' }}>{r.notes}</span>
+                          : <span />
+                        }
                       </div>
                     ))}
                   </div>

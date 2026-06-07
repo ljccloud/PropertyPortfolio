@@ -41,7 +41,7 @@ export default function DocumentModal({ properties, defaultPropertyId, onUpload,
 
   function setExpiryPreset(years: number) {
     if (!form.issueDate) return;
-    const d = addYears(new Date(form.issueDate), years);
+    const d = addYears(new Date(form.issueDate + 'T00:00:00'), years);
     set('expiryDate', format(d, 'yyyy-MM-dd'));
   }
 
@@ -99,13 +99,10 @@ export default function DocumentModal({ properties, defaultPropertyId, onUpload,
             </select>
           </Field>
           {form.certificateType === 'EPC' && (
-            <Field label="EPC Rating">
-              <select style={selectStyle} value={form.epcRating} onChange={e => set('epcRating', e.target.value)}>
-                <option value="">Select rating…</option>
-                {['A','B','C','D','E','F','G'].map(r => (
-                  <option key={r} value={r}>Band {r}</option>
-                ))}
-              </select>
+            <Field label="EPC Rating (e.g. A, B, C)">
+              <input style={inputStyle} type="text" value={form.epcRating}
+                onChange={e => set('epcRating', e.target.value.toUpperCase().slice(0,1))}
+                placeholder="e.g. C" maxLength={1} />
             </Field>
           )}
           <Grid2>
