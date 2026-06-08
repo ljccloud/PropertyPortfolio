@@ -56,6 +56,8 @@ export interface Property {
   lettingAgent?: LettingAgent;
   rentHistory: RentHistoryEntry[];
   keyContacts: KeyContact[];
+  archived?: boolean;
+  archivedDate?: string; // ISO date — transactions after this date excluded from calcs
   createdAt?: string;
   updatedAt?: string;
 }

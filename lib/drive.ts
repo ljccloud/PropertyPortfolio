@@ -4,9 +4,9 @@ import { OAuth2Client } from 'google-auth-library';
 const ROOT_FOLDER_NAME = 'PropertyPortfolio';
 const DATA_FOLDER_NAME = 'data';
 
-// Module-level cache — persists across requests within the same function instance
-// Keyed by token prefix + label to handle multiple users safely
-const _cache = new Map<string, string>();
+// Module-level folder ID cache — survives across warm function invocations
+const _folderCache = new Map<string, string>();
+const _fileIdCache = new Map<string, string>();
 
 function ck(token: string, label: string) {
   return `${token.slice(0, 24)}:${label}`;
@@ -21,69 +21,108 @@ export function getDriveClient(accessToken: string) {
   return google.drive({ version: 'v3', auth });
 }
 
-// ─── Folder helpers ───────────────────────────────────────────────────────────
+// ─── Single-call folder resolution ───────────────────────────────────────────
+// Instead of: find root (1 call) + find data inside root (1 call) = 2 calls
+// We do: find data folder that has 'data' in name anywhere in drive (1 call)
+// then verify it's inside PropertyPortfolio
+// Actually simplest: search for folder named 'data' inside any folder named 'PropertyPortfolio'
+// Drive API supports this in one query
 
-async function findFolder(
+async function findFolders(
+  drive: ReturnType<typeof google.drive>,
+  query: string
+): Promise<Array<{ id: string; name: string; parents?: string[] | null }>> {
+  const res = await drive.files.list({
+    q: query,
+    fields: 'files(id, name, parents)',
+    spaces: 'drive',
+    pageSize: 10,
+  });
+  return (res.data.files || []).map(f => ({
+    id: f.id || '',
+    name: f.name || '',
+    parents: f.parents ?? undefined,
+  }));
+}
+
+async function createFolder(
   drive: ReturnType<typeof google.drive>,
   name: string,
   parentId?: string
-): Promise<string | null> {
-  const q = parentId
-    ? `name='${name}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`
-    : `name='${name}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
-
-  const res = await drive.files.list({ q, fields: 'files(id)', spaces: 'drive', pageSize: 10 });
-
-  if (!res.data.files || res.data.files.length === 0) return null;
-
-  // Auto-cleanup duplicate folders from previous race conditions
-  if (res.data.files.length > 1) {
-    for (let i = 1; i < res.data.files.length; i++) {
-      try {
-        await drive.files.update({ fileId: res.data.files[i].id!, requestBody: { trashed: true } });
-      } catch { /* ignore */ }
-    }
-  }
-
-  return res.data.files[0].id!;
-}
-
-async function ensureFolder(
-  drive: ReturnType<typeof google.drive>,
-  name: string,
-  parentId?: string,
-  token?: string,
-  cacheLabel?: string
 ): Promise<string> {
-  // Check cache
-  if (token && cacheLabel) {
-    const cached = _cache.get(ck(token, cacheLabel));
-    if (cached) return cached;
-  }
-
-  const existing = await findFolder(drive, name, parentId);
-  const id = existing ?? (await drive.files.create({
-    requestBody: { name, mimeType: 'application/vnd.google-apps.folder', parents: parentId ? [parentId] : undefined },
+  const res = await drive.files.create({
+    requestBody: {
+      name,
+      mimeType: 'application/vnd.google-apps.folder',
+      parents: parentId ? [parentId] : undefined,
+    },
     fields: 'id',
-  })).data.id!;
-
-  if (token && cacheLabel) _cache.set(ck(token, cacheLabel), id);
-  return id;
+  });
+  return res.data.id!;
 }
 
-export async function getRootFolderId(
+// Cleanup duplicate folders — keep first, trash the rest
+async function cleanupDuplicates(
   drive: ReturnType<typeof google.drive>,
-  token?: string
+  folders: Array<{ id: string }>
 ): Promise<string> {
-  return ensureFolder(drive, ROOT_FOLDER_NAME, undefined, token, 'root');
+  for (let i = 1; i < folders.length; i++) {
+    try {
+      await drive.files.update({ fileId: folders[i].id!, requestBody: { trashed: true } });
+    } catch { /* ignore */ }
+  }
+  return folders[0].id!;
 }
 
 export async function getDataFolderId(
   drive: ReturnType<typeof google.drive>,
   token?: string
 ): Promise<string> {
-  const rootId = await getRootFolderId(drive, token);
-  return ensureFolder(drive, DATA_FOLDER_NAME, rootId, token, 'data');
+  const cacheKey = token ? ck(token, 'data') : 'data';
+  const cached = _folderCache.get(cacheKey);
+  if (cached) return cached;
+
+  // Step 1: Find or create root folder (1 Drive call)
+  const rootFolders = await findFolders(drive,
+    `name='${ROOT_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`
+  );
+
+  let rootId: string;
+  if (rootFolders.length === 0) {
+    rootId = await createFolder(drive, ROOT_FOLDER_NAME);
+  } else {
+    rootId = rootFolders.length > 1 ? await cleanupDuplicates(drive, rootFolders) : rootFolders[0].id!;
+  }
+
+  // Step 2: Find or create data folder inside root (1 Drive call)
+  const dataFolders = await findFolders(drive,
+    `name='${DATA_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and '${rootId}' in parents and trashed=false`
+  );
+
+  let dataId: string;
+  if (dataFolders.length === 0) {
+    dataId = await createFolder(drive, DATA_FOLDER_NAME, rootId);
+  } else {
+    dataId = dataFolders.length > 1 ? await cleanupDuplicates(drive, dataFolders) : dataFolders[0].id!;
+  }
+
+  _folderCache.set(cacheKey, dataId);
+  // Also cache root
+  if (token) _folderCache.set(ck(token, 'root'), rootId);
+
+  return dataId;
+}
+
+export async function getRootFolderId(
+  drive: ReturnType<typeof google.drive>,
+  token?: string
+): Promise<string> {
+  const cacheKey = token ? ck(token, 'root') : 'root';
+  const cached = _folderCache.get(cacheKey);
+  if (cached) return cached;
+  // Get data folder first which also caches root
+  await getDataFolderId(drive, token);
+  return _folderCache.get(cacheKey) || '';
 }
 
 export async function getPropertyFolderId(
@@ -91,10 +130,26 @@ export async function getPropertyFolderId(
   propertyAddress: string,
   token?: string
 ): Promise<string> {
-  const rootId = await getRootFolderId(drive, token);
   const words = propertyAddress.replace(/[^a-zA-Z0-9 ]/g, '').trim().split(/\s+/);
-  const name = words.find(w => isNaN(Number(w))) || words[0] || 'Property';
-  return ensureFolder(drive, name, rootId, token, `prop:${name}`);
+  const folderName = words.find(w => isNaN(Number(w))) || words[0] || 'Property';
+  const cacheKey = token ? ck(token, `prop:${folderName}`) : `prop:${folderName}`;
+  const cached = _folderCache.get(cacheKey);
+  if (cached) return cached;
+
+  const rootId = await getRootFolderId(drive, token);
+  const folders = await findFolders(drive,
+    `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and '${rootId}' in parents and trashed=false`
+  );
+
+  let id: string;
+  if (folders.length === 0) {
+    id = await createFolder(drive, folderName, rootId);
+  } else {
+    id = folders.length > 1 ? await cleanupDuplicates(drive, folders) : folders[0].id!;
+  }
+
+  _folderCache.set(cacheKey, id);
+  return id;
 }
 
 // ─── File naming ──────────────────────────────────────────────────────────────
@@ -115,22 +170,40 @@ export function buildFileName(
   return `${first}_${yymm}_${cat}_${desc}${ext}`;
 }
 
-// ─── JSON helpers ─────────────────────────────────────────────────────────────
+// ─── JSON helpers — with file ID caching ─────────────────────────────────────
 
-export async function readJsonFile<T>(
+async function findFileId(
   drive: ReturnType<typeof google.drive>,
   fileName: string,
-  folderId: string
-): Promise<T | null> {
+  folderId: string,
+  token?: string
+): Promise<string | null> {
+  const cacheKey = token ? ck(token, `file:${fileName}`) : `file:${fileName}`;
+  const cached = _fileIdCache.get(cacheKey);
+  if (cached) return cached;
+
   const res = await drive.files.list({
     q: `name='${fileName}' and '${folderId}' in parents and trashed=false`,
     fields: 'files(id)',
     spaces: 'drive',
   });
-  if (!res.data.files?.length) return null;
+
+  const id = res.data.files?.[0]?.id || null;
+  if (id && token) _fileIdCache.set(cacheKey, id);
+  return id;
+}
+
+export async function readJsonFile<T>(
+  drive: ReturnType<typeof google.drive>,
+  fileName: string,
+  folderId: string,
+  token?: string
+): Promise<T | null> {
+  const fileId = await findFileId(drive, fileName, folderId, token);
+  if (!fileId) return null;
 
   const content = await drive.files.get(
-    { fileId: res.data.files[0].id!, alt: 'media' },
+    { fileId, alt: 'media' },
     { responseType: 'text' }
   );
   return JSON.parse(content.data as string) as T;
@@ -140,24 +213,24 @@ export async function writeJsonFile<T>(
   drive: ReturnType<typeof google.drive>,
   fileName: string,
   folderId: string,
-  data: T
+  data: T,
+  token?: string
 ): Promise<void> {
-  const res = await drive.files.list({
-    q: `name='${fileName}' and '${folderId}' in parents and trashed=false`,
-    fields: 'files(id)',
-    spaces: 'drive',
-  });
-
   const body = JSON.stringify(data, null, 2);
   const media = { mimeType: 'application/json', body };
+  const cacheKey = token ? ck(token, `file:${fileName}`) : `file:${fileName}`;
 
-  if (res.data.files?.length) {
-    await drive.files.update({ fileId: res.data.files[0].id!, media });
+  let fileId = await findFileId(drive, fileName, folderId, token);
+
+  if (fileId) {
+    await drive.files.update({ fileId, media });
   } else {
-    await drive.files.create({
+    const res = await drive.files.create({
       requestBody: { name: fileName, parents: [folderId], mimeType: 'application/json' },
       media,
     });
+    fileId = res.data.id!;
+    if (token) _fileIdCache.set(cacheKey, fileId);
   }
 }
 

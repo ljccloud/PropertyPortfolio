@@ -12,7 +12,7 @@ import { TenantModal, AgentModal, RentHistoryModal, ContactModal } from './modal
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Owner { id: string; name: string; email: string; percentage: number; }
 interface Tenant { id: string; name: string; email: string; phone: string; leaseStart: string; leaseEnd?: string; deposit: number; rentPcm: number; }
-interface Property { id: string; address: string; reference?: string; purchasePrice?: number; purchaseDate?: string; currentValue?: number; owners: Owner[]; tenant?: Tenant; lettingAgent?: any; rentHistory: any[]; keyContacts: any[]; }
+interface Property { id: string; address: string; reference?: string; purchasePrice?: number; purchaseDate?: string; currentValue?: number; owners: Owner[]; tenant?: Tenant; lettingAgent?: any; rentHistory: any[]; keyContacts: any[]; archived?: boolean; archivedDate?: string; }
 interface Transaction { id: string; propertyId: string; propertyAddress: string; type: 'income' | 'expense'; category: string; dateStart: string; dateEnd?: string; amount: number; description?: string; supplier?: string; }
 interface MaintenanceIssue { id: string; propertyId: string; propertyAddress: string; issue: string; dateRaised: string; dateResolved?: string; status: 'Open' | 'Closed'; description?: string; resolution?: string; costToResolve?: number; }
 interface Document { id: string; propertyId: string; propertyAddress: string; category: string; documentDate: string; description: string; driveViewLink: string; driveFileName: string; certificateType?: string; expiryDate?: string; issueDate?: string; epcRating?: string; applianceName?: string; applianceMake?: string; applianceModel?: string; applianceSerial?: string; }
@@ -48,7 +48,7 @@ function getPeriod(period: string, customFrom?: string, customTo?: string): { st
   if (period === 'ytd')      { const endToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999); return { start: new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0), end: endToday, label: `YTD ${now.getFullYear()}` }; }
   if (period === 'tytd')     { const endToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999); return { start: taxYearStart(now), end: endToday, label: 'Tax YTD' }; }
   if (period === 'curtaxq')  { const qs = taxQStart(now); const qe = new Date(qs); qe.setMonth(qe.getMonth()+3); qe.setDate(qe.getDate()-1); qe.setHours(23,59,59,999); return { start: qs, end: qe, label: 'Tax Quarter' }; }
-  if (period === 'alltime')  return { start: new Date('2000-01-01'), end: now, label: 'All time' };
+  if (period === 'alltime')  { const endToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999); return { start: new Date(2000, 0, 1), end: endToday, label: 'All time' }; }
   if (period === 'custom' && customFrom && customTo) return { start: new Date(customFrom + 'T00:00:00'), end: new Date(customTo + 'T23:59:59'), label: `${fmtDate(customFrom)} – ${fmtDate(customTo)}` };
   return { start: new Date(now.getFullYear(), 0, 1), end: now, label: `YTD ${now.getFullYear()}` };
 }
@@ -77,9 +77,13 @@ function apportionAmount(tx: Transaction, start: Date, end: Date): number {
   return (tx.amount * overlapDays) / totalDays;
 }
 function txInRange(tx: Transaction, start: Date, end: Date) {
+  // Use T00:00:00 consistently — matches apportionAmount which also uses T00:00:00
   const txStart = new Date(tx.dateStart + 'T00:00:00');
-  const txEnd = tx.dateEnd ? new Date(tx.dateEnd + 'T23:59:59') : new Date(tx.dateStart + 'T23:59:59');
-  return txStart <= end && txEnd >= start;
+  const txEnd = tx.dateEnd ? new Date(tx.dateEnd + 'T00:00:00') : new Date(tx.dateStart + 'T00:00:00');
+  // Strip time from range bounds for pure calendar comparison
+  const rangeFrom = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  const rangeTo   = new Date(end.getFullYear(),   end.getMonth(),   end.getDate());
+  return txStart <= rangeTo && txEnd >= rangeFrom;
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
@@ -116,6 +120,8 @@ export default function AppShell() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ msg: string; type: 'error' | 'success' } | null>(null);
+  const [tokenError, setTokenError] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
 
   function showToast(msg: string, type: 'error' | 'success' = 'success') {
     setToast({ msg, type });
@@ -138,10 +144,10 @@ export default function AppShell() {
   useEffect(() => {
     if (!session) return;
 
-    // If token refresh failed, show re-auth banner
+    // If token refresh failed, show persistent re-auth prompt
     if ((session as any).error === 'RefreshAccessTokenError') {
       setLoading(false);
-      showToast('Your session expired — please sign in again', 'error');
+      setTokenError(true);
       return;
     }
 
@@ -186,7 +192,22 @@ export default function AppShell() {
     const ownerEntry = property.owners.find(o => o.id === filterOwnerId);
     return ownerEntry ? ownerEntry.percentage : 0;
   }
-  const filteredTxns = transactions.filter(tx => (!filterPropId || tx.propertyId === filterPropId) && txInRange(tx, start, end));
+  // For archived properties, cap transactions at archivedDate
+  function getPropertyEnd(prop: Property): Date {
+    if (prop.archived && prop.archivedDate) {
+      return new Date(prop.archivedDate + 'T00:00:00');
+    }
+    return end;
+  }
+
+  const filteredTxns = transactions.filter(tx => {
+    if (filterPropId && tx.propertyId !== filterPropId) return false;
+    const prop = properties.find(p => p.id === tx.propertyId);
+    if (!prop) return false;
+    const propEnd = getPropertyEnd(prop);
+    const effectiveEnd = propEnd < end ? propEnd : end;
+    return txInRange(tx, start, effectiveEnd);
+  });
   const totalIncome = filteredTxns.filter(t => t.type === 'income').reduce((s, t) => s + apportionAmount(t, start, end), 0);
   const totalExpense = filteredTxns.filter(t => t.type === 'expense').reduce((s, t) => s + apportionAmount(t, start, end), 0);
   const totalNet = totalIncome - totalExpense;
@@ -195,6 +216,15 @@ export default function AppShell() {
   // ─── API ──────────────────────────────────────────────────────────────────────
   async function saveProperty(data: any) {
     const isNew = !data.id;
+    // Optimistic update — apply immediately, roll back on failure
+    const optimisticId = data.id || `temp-${Date.now()}`;
+    const optimisticData = { ...data, id: optimisticId };
+    const prevProperties = properties;
+    if (isNew) {
+      setProperties(ps => [...ps, optimisticData]);
+    } else {
+      setProperties(ps => ps.map(p => p.id === data.id ? { ...p, ...data } : p));
+    }
     try {
       const res = await fetch(isNew ? '/api/properties' : `/api/properties/${data.id}`, {
         method: isNew ? 'POST' : 'PUT',
@@ -204,16 +234,14 @@ export default function AppShell() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
       const saved = json.data;
-      if (saved) {
-        setProperties(ps => isNew ? [...ps, saved] : ps.map(p => p.id === saved.id ? saved : p));
-        showToast(isNew ? 'Property added' : 'Property saved');
-      }
-      return saved;
+      // Replace optimistic with confirmed data
+      if (saved) setProperties(ps => isNew ? ps.map(p => p.id === optimisticId ? saved : p) : ps.map(p => p.id === saved.id ? saved : p));
+      showToast(isNew ? 'Property added' : 'Saved');
+      return saved || optimisticData;
     } catch (e: any) {
-      // Only show error if it's a real failure (not a component unmount race)
-      if (e.message && !e.message.includes('unmount') && !e.message.includes('cancel')) {
-        showToast(`Save failed: ${e.message}`, 'error');
-      }
+      // Roll back optimistic update
+      setProperties(prevProperties);
+      if (e.message && !e.message.includes('unmount')) showToast(`Save failed: ${e.message}`, 'error');
       throw e;
     }
   }
@@ -221,8 +249,6 @@ export default function AppShell() {
   async function savePropertyPatch(propId: string, patch: Partial<Property>) {
     const prop = properties.find(p => p.id === propId);
     if (!prop) return;
-    // saveProperty already shows 'Property saved' toast on success
-    // and shows error toast on failure — no need to add more here
     try {
       await saveProperty({ ...prop, ...patch });
     } catch {
@@ -230,8 +256,38 @@ export default function AppShell() {
     }
   }
 
+  async function archiveProperty(propId: string) {
+    const today = new Date().toISOString().slice(0, 10);
+    await savePropertyPatch(propId, { archived: true, archivedDate: today });
+    showToast('Property archived');
+  }
+
+  async function unarchiveProperty(propId: string) {
+    await savePropertyPatch(propId, { archived: false, archivedDate: undefined });
+    showToast('Property restored');
+  }
+
+  async function deleteProperty(propId: string) {
+    const prev = properties;
+    setProperties(ps => ps.filter(p => p.id !== propId));
+    try {
+      const res = await fetch(`/api/properties/${propId}`, { method: 'DELETE' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      showToast('Property deleted');
+    } catch (e: any) {
+      setProperties(prev);
+      showToast(`Delete failed: ${e.message}`, 'error');
+    }
+  }
+
   async function saveTxn(data: any) {
     const isNew = !data.id;
+    const tempId = data.id || `temp-${Date.now()}`;
+    const optimistic = { ...data, id: tempId };
+    const prev = transactions;
+    if (isNew) setTransactions(ts => [...ts, optimistic]);
+    else setTransactions(ts => ts.map(t => t.id === data.id ? { ...t, ...data } : t));
     try {
       const res = await fetch('/api/finance', {
         method: isNew ? 'POST' : 'PUT',
@@ -241,12 +297,11 @@ export default function AppShell() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
       const saved = json.data;
-      if (saved) {
-        setTransactions(ts => isNew ? [...ts, saved] : ts.map(t => t.id === saved.id ? saved : t));
-        showToast('Transaction saved');
-      }
+      if (saved) setTransactions(ts => isNew ? ts.map(t => t.id === tempId ? saved : t) : ts.map(t => t.id === saved.id ? saved : t));
+      showToast('Saved');
     } catch (e: any) {
-      showToast(`Failed to save transaction: ${e.message}`, 'error');
+      setTransactions(prev);
+      showToast(`Save failed: ${e.message}`, 'error');
       throw e;
     }
   }
@@ -258,6 +313,11 @@ export default function AppShell() {
 
   async function saveMaint(data: any) {
     const isNew = !data.id;
+    const tempId = data.id || `temp-${Date.now()}`;
+    const optimistic = { ...data, id: tempId, status: data.dateResolved ? 'Closed' : 'Open' };
+    const prev = maintenance;
+    if (isNew) setMaintenance(ms => [...ms, optimistic]);
+    else setMaintenance(ms => ms.map(m => m.id === data.id ? { ...m, ...optimistic } : m));
     try {
       const res = await fetch('/api/maintenance', {
         method: isNew ? 'POST' : 'PUT',
@@ -267,14 +327,11 @@ export default function AppShell() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
       const saved = json.data;
-      if (saved) {
-        setMaintenance(ms => isNew ? [...ms, saved] : ms.map(m => m.id === saved.id ? saved : m));
-        showToast('Issue saved');
-      }
+      if (saved) setMaintenance(ms => isNew ? ms.map(m => m.id === tempId ? saved : m) : ms.map(m => m.id === saved.id ? saved : m));
+      showToast('Saved');
     } catch (e: any) {
-      if (e.message && !e.message.includes('unmount')) {
-        showToast(`Failed to save issue: ${e.message}`, 'error');
-      }
+      setMaintenance(prev);
+      if (e.message && !e.message.includes('unmount')) showToast(`Save failed: ${e.message}`, 'error');
       throw e;
     }
   }
@@ -352,13 +409,17 @@ export default function AppShell() {
     // Totals for selected owner (owner filter adjusts % per property)
     const ownerIncome = fps.reduce((s, p) => {
       const pct = getOwnershipPct(p);
-      const ptxns = transactions.filter(t => t.propertyId === p.id && txInRange(t, start, end));
-      return s + ptxns.filter(t => t.type === 'income').reduce((ss, t) => ss + apportionAmount(t, start, end) * pct / 100, 0);
+      const propEnd = getPropertyEnd(p);
+      const effEnd = propEnd < end ? propEnd : end;
+      const ptxns = transactions.filter(t => t.propertyId === p.id && txInRange(t, start, effEnd));
+      return s + ptxns.filter(t => t.type === 'income').reduce((ss, t) => ss + apportionAmount(t, start, effEnd) * pct / 100, 0);
     }, 0);
     const ownerExpense = fps.reduce((s, p) => {
       const pct = getOwnershipPct(p);
-      const ptxns = transactions.filter(t => t.propertyId === p.id && txInRange(t, start, end));
-      return s + ptxns.filter(t => t.type === 'expense').reduce((ss, t) => ss + apportionAmount(t, start, end) * pct / 100, 0);
+      const propEnd = getPropertyEnd(p);
+      const effEnd = propEnd < end ? propEnd : end;
+      const ptxns = transactions.filter(t => t.propertyId === p.id && txInRange(t, start, effEnd));
+      return s + ptxns.filter(t => t.type === 'expense').reduce((ss, t) => ss + apportionAmount(t, start, effEnd) * pct / 100, 0);
     }, 0);
     const ownerNet = ownerIncome - ownerExpense;
 
@@ -401,16 +462,25 @@ export default function AppShell() {
           <Metric label="Avg Yield" value={avgYield === '—' ? '—' : `${avgYield}%`} />
         </div>
 
-        <div style={sectionLabel}>Properties ({fps.filter(p => !filterOwnerId || getOwnershipPct(p) > 0).length})</div>
-        {fps.filter(p => !filterOwnerId || getOwnershipPct(p) > 0).length === 0
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 8px' }}>
+          <div style={sectionLabel as React.CSSProperties}>Properties ({fps.filter(p => (!filterOwnerId || getOwnershipPct(p) > 0) && !p.archived).length})</div>
+          {fps.some(p => p.archived) && (
+            <button onClick={() => setShowArchived(sa => !sa)} style={{ fontSize: 12, color: 'var(--text2)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+              {showArchived ? 'Hide archived' : `Show archived (${fps.filter(p => p.archived).length})`}
+            </button>
+          )}
+        </div>
+        {fps.filter(p => (!filterOwnerId || getOwnershipPct(p) > 0) && (showArchived || !p.archived)).length === 0
           ? <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text2)', fontSize: 14 }}>{filterOwnerId ? 'No properties for this owner' : 'Add a property to get started'}</div>
-          : fps.map(p => {
+          : fps.filter(p => showArchived || !p.archived).map(p => {
             const pct = getOwnershipPct(p);
             // Skip properties where owner has no stake when filtering by owner
             if (filterOwnerId && pct === 0) return null;
-            const ptxns = transactions.filter(t => t.propertyId === p.id && txInRange(t, start, end));
-            const pInc = ptxns.filter(t => t.type === 'income').reduce((s, t) => s + apportionAmount(t, start, end) * pct / 100, 0);
-            const pExp = ptxns.filter(t => t.type === 'expense').reduce((s, t) => s + apportionAmount(t, start, end) * pct / 100, 0);
+            const propEnd = getPropertyEnd(p);
+            const effectiveEnd = propEnd < end ? propEnd : end;
+            const ptxns = transactions.filter(t => t.propertyId === p.id && txInRange(t, start, effectiveEnd));
+            const pInc = ptxns.filter(t => t.type === 'income').reduce((s, t) => s + apportionAmount(t, start, effectiveEnd) * pct / 100, 0);
+            const pExp = ptxns.filter(t => t.type === 'expense').reduce((s, t) => s + apportionAmount(t, start, effectiveEnd) * pct / 100, 0);
             const pNet = pInc - pExp;
             const propCertDocs = documents.filter(d => d.propertyId === p.id && d.category === 'Certificates');
             function CertCell({ type, label }: { type: string; label: string }) {
@@ -443,7 +513,10 @@ export default function AppShell() {
                     }
                   </div>
                   </div>
-                  <span style={{ display: 'inline-block', fontSize: 11, fontWeight: 500, padding: '2px 8px', borderRadius: 20, background: p.tenant ? 'var(--green-bg)' : 'var(--amber-bg)', color: p.tenant ? 'var(--green)' : 'var(--amber)' }}>{p.tenant ? 'Let' : 'Vacant'}</span>
+                  {p.archived
+                    ? <span style={{ display: 'inline-block', fontSize: 11, fontWeight: 500, padding: '2px 8px', borderRadius: 20, background: 'var(--surface2)', color: 'var(--text2)' }}>Archived</span>
+                    : <span style={{ display: 'inline-block', fontSize: 11, fontWeight: 500, padding: '2px 8px', borderRadius: 20, background: p.tenant ? 'var(--green-bg)' : 'var(--amber-bg)', color: p.tenant ? 'var(--green)' : 'var(--amber)' }}>{p.tenant ? 'Let' : 'Vacant'}</span>
+                  }
                   <span style={{ fontSize: 18, color: 'var(--text3)' }}>›</span>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, padding: '10px 0', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', marginBottom: 10 }}>
@@ -473,19 +546,24 @@ export default function AppShell() {
     return (
       <div style={{ padding: 16 }}>
         <PeriodBar />
-        {properties.map(p => {
-          const ptxns = transactions.filter(t => t.propertyId === p.id && txInRange(t, start, end));
-          const pInc = ptxns.filter(t => t.type === 'income').reduce((s, t) => s + apportionAmount(t, start, end), 0);
-          const pExp = ptxns.filter(t => t.type === 'expense').reduce((s, t) => s + apportionAmount(t, start, end), 0);
+        {properties.filter(p => showArchived || !p.archived).map(p => {
+          const propEnd = getPropertyEnd(p);
+          const effectiveEnd = propEnd < end ? propEnd : end;
+          const ptxns = transactions.filter(t => t.propertyId === p.id && txInRange(t, start, effectiveEnd));
+          const pInc = ptxns.filter(t => t.type === 'income').reduce((s, t) => s + apportionAmount(t, start, effectiveEnd), 0);
+          const pExp = ptxns.filter(t => t.type === 'expense').reduce((s, t) => s + apportionAmount(t, start, effectiveEnd), 0);
           const yld = p.currentValue && p.tenant ? ((p.tenant.rentPcm * 12 / p.currentValue) * 100).toFixed(1) : '—';
           return (
-            <div key={p.id} style={{ ...card, cursor: 'pointer' }} onClick={() => { setDetailPropId(p.id); setDetailTab('tenant'); }}>
+            <div key={p.id} style={{ ...card, cursor: 'pointer', opacity: p.archived ? 0.7 : 1 }} onClick={() => { setDetailPropId(p.id); setDetailTab('tenant'); }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 15, fontWeight: 500 }}>{p.address}</div>
                   <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 1 }}>{p.reference || ''}</div>
                 </div>
-                <span style={{ display: 'inline-block', fontSize: 11, fontWeight: 500, padding: '2px 8px', borderRadius: 20, background: p.tenant ? 'var(--green-bg)' : 'var(--amber-bg)', color: p.tenant ? 'var(--green)' : 'var(--amber)' }}>{p.tenant ? 'Let' : 'Vacant'}</span>
+                {p.archived
+                  ? <span style={{ display: 'inline-block', fontSize: 11, fontWeight: 500, padding: '2px 8px', borderRadius: 20, background: 'var(--surface2)', color: 'var(--text2)' }}>Archived</span>
+                  : <span style={{ display: 'inline-block', fontSize: 11, fontWeight: 500, padding: '2px 8px', borderRadius: 20, background: p.tenant ? 'var(--green-bg)' : 'var(--amber-bg)', color: p.tenant ? 'var(--green)' : 'var(--amber)' }}>{p.tenant ? 'Let' : 'Vacant'}</span>
+                }
                 <span style={{ fontSize: 18, color: 'var(--text3)' }}>›</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 6, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
@@ -499,6 +577,11 @@ export default function AppShell() {
             </div>
           );
         })}
+        {properties.some(p => p.archived) && (
+          <button onClick={() => setShowArchived(sa => !sa)} style={{ ...btnFullSec, marginBottom: 8 }}>
+            {showArchived ? 'Hide archived properties' : `Show archived (${properties.filter(p => p.archived).length})`}
+          </button>
+        )}
         <button onClick={() => setModal({ type: 'addProperty' })} style={btnFullSec}>+ Add property</button>
       </div>
     );
@@ -569,7 +652,7 @@ export default function AppShell() {
                         <span style={{ fontWeight: 500 }}>{fmt(r.amount)}</span>
                         <span style={{ color: 'var(--text2)' }}>{fmtDate(r.dateFrom)} → {r.dateTo ? fmtDate(r.dateTo) : 'Present'}</span>
                         {r.notes
-                          ? <span style={{ color: 'var(--text3)', fontSize: 12, textAlign: 'right' }}>{r.notes}</span>
+                          ? <span style={{ color: 'var(--text3)', fontSize: 12, textAlign: 'left' }}>{r.notes}</span>
                           : <span />
                         }
                       </div>
@@ -581,21 +664,39 @@ export default function AppShell() {
             )}
 
             {detailTab === 'financials' && (
-              <div style={card}>
-                <IR label="Purchase Price" value={p.purchasePrice ? fmt(p.purchasePrice) : undefined} />
-                <IR label="Purchase Date" value={fmtDate(p.purchaseDate)} />
-                <IR label="Current Value" value={p.currentValue ? fmt(p.currentValue) : undefined} />
-                <IR label="Gross Yield" value={p.currentValue && p.tenant ? `${((p.tenant.rentPcm * 12 / p.currentValue) * 100).toFixed(1)}%` : undefined} />
-                <div style={{ paddingTop: 12 }}>
-                  <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Ownership</div>
-                  {p.owners.map(o => (
-                    <div key={o.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
-                      <span>{o.name || 'Owner'}</span>
-                      <span style={{ fontWeight: 500 }}>{o.percentage}%</span>
-                    </div>
-                  ))}
+              <div>
+                <div style={card}>
+                  <IR label="Purchase Price" value={p.purchasePrice ? fmt(p.purchasePrice) : undefined} />
+                  <IR label="Purchase Date" value={fmtDate(p.purchaseDate)} />
+                  <IR label="Current Value" value={p.currentValue ? fmt(p.currentValue) : undefined} />
+                  <IR label="Gross Yield" value={p.currentValue && p.tenant ? `${((p.tenant.rentPcm * 12 / p.currentValue) * 100).toFixed(1)}%` : undefined} />
+                  {p.archived && p.archivedDate && <IR label="Archived" value={fmtDate(p.archivedDate)} />}
+                  <div style={{ paddingTop: 12 }}>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Ownership</div>
+                    {p.owners.map(o => (
+                      <div key={o.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                        <span>{o.name || 'Owner'}</span>
+                        <span style={{ fontWeight: 500 }}>{o.percentage}%</span>
+                      </div>
+                    ))}
+                  </div>
+                  <button onClick={() => setModal({ type: 'editProperty', property: p })} style={{ ...btnFullSec, marginTop: 16 }}>Edit property details</button>
                 </div>
-                <button onClick={() => setModal({ type: 'editProperty', property: p })} style={{ ...btnFullSec, marginTop: 16 }}>Edit property details</button>
+                {/* Archive / Restore / Delete */}
+                {!p.archived
+                  ? <button onClick={() => { if (confirm(`Archive ${p.address}? Transactions after today will be excluded from calculations.`)) { archiveProperty(p.id); setDetailPropId(null); } }}
+                      style={{ ...btnFullSec, color: 'var(--amber)', borderColor: '#E8C878', background: 'var(--amber-bg)', marginTop: 4 }}>
+                      Archive property
+                    </button>
+                  : <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={() => { unarchiveProperty(p.id); setDetailPropId(null); }}
+                        style={{ ...btnFullSec, flex: 1, marginTop: 0 }}>Restore property</button>
+                      <button onClick={() => { if (confirm(`Permanently delete ${p.address}? This cannot be undone.`)) { deleteProperty(p.id); setDetailPropId(null); } }}
+                        style={{ ...btnFullSec, flex: 1, marginTop: 0, background: 'var(--red-bg)', color: 'var(--red)', borderColor: '#E8A0A0' }}>
+                        Delete permanently
+                      </button>
+                    </div>
+                }
               </div>
             )}
 
@@ -684,14 +785,14 @@ export default function AppShell() {
             {detailTab === 'documents' && (
               <>
                 {propDocs.map(d => (
-                  <div key={d.id} style={{ ...card, display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div key={d.id} style={{ ...card, display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}
+                    onClick={() => window.open(d.driveViewLink, '_blank', 'noopener,noreferrer')}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 14, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.description}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>{d.category}{d.certificateType ? ` · ${d.certificateType}` : ''} · {fmtDate(d.documentDate)}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>{d.category}{d.certificateType ? ` · ${d.certificateType}` : ''}{d.epcRating ? ` · Band ${d.epcRating}` : ''} · {fmtDate(d.documentDate)}</div>
                       {d.expiryDate && <div style={{ fontSize: 12, color: 'var(--amber)', marginTop: 2 }}>Expires {fmtDate(d.expiryDate)}</div>}
                     </div>
-                    <a href={d.driveViewLink} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--blue)', fontSize: 18, textDecoration: 'none', flexShrink: 0 }}>↗</a>
-                    <button onClick={() => deleteDoc(d.id)} style={iconBtn}>✕</button>
+                    <button onClick={e => { e.stopPropagation(); deleteDoc(d.id); }} style={iconBtn}>✕</button>
                   </div>
                 ))}
                 {propDocs.length === 0 && <div style={{ color: 'var(--text2)', fontSize: 14, padding: '12px 0' }}>No documents</div>}
@@ -717,7 +818,7 @@ export default function AppShell() {
         </div>
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
           <button onClick={() => setModal({ type: 'addTransaction' })} style={{ ...btnFullSec, flex: 1, marginTop: 0 }}>+ Add transaction</button>
-          <button onClick={() => { const p = new URLSearchParams({ filter: period }); if (customFrom) p.set('from', customFrom); if (customTo) p.set('to', customTo); window.open(`/api/finance/export?${p}`, '_blank'); }} style={{ ...btnFull, flex: 1, marginTop: 0 }}>MTD Export</button>
+          <button onClick={() => { const p = new URLSearchParams({ filter: period }); if (customFrom) p.set('from', customFrom); if (customTo) p.set('to', customTo); window.open(`/api/finance/export?${p}`, '_blank'); }} style={{ ...btnFull, flex: 1, marginTop: 0 }}>Export transactions</button>
         </div>
         <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
           {(['all', 'income', 'expense'] as const).map(t => <button key={t} onClick={() => setFinTab(t)} style={pillBtn(finTab === t)}>{t.charAt(0).toUpperCase() + t.slice(1)}</button>)}
@@ -801,14 +902,14 @@ export default function AppShell() {
             <div key={propId}>
               <div style={sectionLabel}>{prop?.address || propId}</div>
               {docs.map(d => (
-                <div key={d.id} style={{ ...card, display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div key={d.id} style={{ ...card, display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', padding: '12px 14px' }}
+                  onClick={() => window.open(d.driveViewLink, '_blank', 'noopener,noreferrer')}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.description}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>{d.category}{d.certificateType ? ` · ${d.certificateType}` : ''} · {fmtDate(d.documentDate)}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>{d.category}{d.certificateType ? ` · ${d.certificateType}` : ''}{d.epcRating ? ` · Band ${d.epcRating}` : ''} · {fmtDate(d.documentDate)}</div>
                     {d.expiryDate && <div style={{ fontSize: 12, color: 'var(--amber)', marginTop: 2 }}>Expires {fmtDate(d.expiryDate)}</div>}
                   </div>
-                  <a href={d.driveViewLink} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--blue)', fontSize: 18, textDecoration: 'none', flexShrink: 0 }}>↗</a>
-                  <button onClick={() => deleteDoc(d.id)} style={iconBtn}>✕</button>
+                  <button onClick={e => { e.stopPropagation(); deleteDoc(d.id); }} style={iconBtn}>✕</button>
                 </div>
               ))}
             </div>
@@ -820,6 +921,20 @@ export default function AppShell() {
   }
 
   // ─── Loading ──────────────────────────────────────────────────────────────────
+  // Token refresh failed — show re-login screen
+  if (tokenError) return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100dvh', background: 'var(--bg)', padding: 32, textAlign: 'center' }}>
+      <div style={{ fontFamily: 'DM Serif Display, serif', fontSize: 24, marginBottom: 12 }}>Session expired</div>
+      <p style={{ fontSize: 14, color: 'var(--text2)', marginBottom: 32, maxWidth: 280 }}>Your Google session has expired. Sign in again to continue — your data is safe.</p>
+      <button
+        onClick={() => { window.location.href = '/api/auth/signin?callbackUrl=/shell'; }}
+        style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 24px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--surface)', cursor: 'pointer', fontSize: 15, fontWeight: 500, fontFamily: 'inherit' }}>
+        <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.35-8.16 2.35-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+        Sign in again
+      </button>
+    </div>
+  );
+
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100dvh', background: 'var(--bg)' }}>
       <div style={{ textAlign: 'center' }}>

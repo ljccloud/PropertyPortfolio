@@ -47,7 +47,8 @@ export default function TransactionModal({ properties, transaction, defaultPrope
 
   function applyPreset(months: number) {
     if (!form.dateStart) return;
-    const start = new Date(form.dateStart);
+    // Use T00:00:00 to avoid UTC midnight shifting date in BST timezone
+    const start = new Date(form.dateStart + 'T00:00:00');
     const end = addMonths(start, months);
     end.setDate(end.getDate() - 1);
     set('dateEnd', format(end, 'yyyy-MM-dd'));
