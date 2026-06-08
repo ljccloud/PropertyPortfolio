@@ -490,7 +490,7 @@ export default function AppShell() {
               // For others: show expiry date or status
               const displayText = type === 'EPC' && cert?.epcRating
                 ? cert.expiryDate
-                  ? `${cert.epcRating} · ${fmtDate(cert.expiryDate)}`
+                  ? `Band ${cert.epcRating} · ${fmtDate(cert.expiryDate)}`
                   : `Band ${cert.epcRating}`
                 : certLabel(cert?.expiryDate);
               return (
@@ -792,7 +792,7 @@ export default function AppShell() {
                       <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>{d.category}{d.certificateType ? ` · ${d.certificateType}` : ''}{d.epcRating ? ` · Band ${d.epcRating}` : ''} · {fmtDate(d.documentDate)}</div>
                       {d.expiryDate && <div style={{ fontSize: 12, color: 'var(--amber)', marginTop: 2 }}>Expires {fmtDate(d.expiryDate)}</div>}
                     </div>
-                    <button onClick={e => { e.stopPropagation(); deleteDoc(d.id); }} style={iconBtn}>✕</button>
+                    <button onClick={e => { e.stopPropagation(); if (confirm('Delete this document?')) deleteDoc(d.id); }} style={iconBtn}>✕</button>
                   </div>
                 ))}
                 {propDocs.length === 0 && <div style={{ color: 'var(--text2)', fontSize: 14, padding: '12px 0' }}>No documents</div>}
@@ -909,7 +909,7 @@ export default function AppShell() {
                     <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>{d.category}{d.certificateType ? ` · ${d.certificateType}` : ''}{d.epcRating ? ` · Band ${d.epcRating}` : ''} · {fmtDate(d.documentDate)}</div>
                     {d.expiryDate && <div style={{ fontSize: 12, color: 'var(--amber)', marginTop: 2 }}>Expires {fmtDate(d.expiryDate)}</div>}
                   </div>
-                  <button onClick={e => { e.stopPropagation(); deleteDoc(d.id); }} style={iconBtn}>✕</button>
+                  <button onClick={e => { e.stopPropagation(); if (confirm('Delete this document?')) deleteDoc(d.id); }} style={iconBtn}>✕</button>
                 </div>
               ))}
             </div>
