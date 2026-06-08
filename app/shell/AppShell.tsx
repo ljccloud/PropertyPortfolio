@@ -596,12 +596,12 @@ export default function AppShell() {
     const propTxns = transactions.filter(t => t.propertyId === p.id).sort((a, b) => b.dateStart.localeCompare(a.dateStart));
     const tabs = [
       { key: 'tenant', label: 'Tenant' },
-      { key: 'financials', label: 'Financials' },
       { key: 'certs', label: 'Certs & Appliances' },
       { key: 'maintenance', label: 'Maintenance' },
       { key: 'contacts', label: 'Contacts' },
       { key: 'finance log', label: 'Finance Log' },
       { key: 'documents', label: 'Documents' },
+      { key: 'financials', label: 'Financials' },
     ];
 
     return (
