@@ -7,12 +7,12 @@ import PropertyModal from './modals/PropertyModal';
 import TransactionModal from './modals/TransactionModal';
 import MaintenanceModal from './modals/MaintenanceModal';
 import DocumentModal from './modals/DocumentModal';
-import { TenantModal, AgentModal, RentHistoryModal, ContactModal } from './modals/PropertyDetailModals';
+import { TenantModal, AgentModal, RentHistoryModal, ContactModal, RenovationModal, ApplianceModal } from './modals/PropertyDetailModals';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Owner { id: string; name: string; email: string; percentage: number; }
 interface Tenant { id: string; name: string; email: string; phone: string; leaseStart: string; leaseEnd?: string; deposit: number; rentPcm: number; }
-interface Property { id: string; address: string; reference?: string; purchasePrice?: number; purchaseDate?: string; currentValue?: number; owners: Owner[]; tenant?: Tenant; lettingAgent?: any; rentHistory: any[]; keyContacts: any[]; archived?: boolean; archivedDate?: string; }
+interface Property { id: string; address: string; reference?: string; purchasePrice?: number; purchaseDate?: string; currentValue?: number; renovations?: any[]; appliances?: any[]; owners: Owner[]; tenant?: Tenant; lettingAgent?: any; rentHistory: any[]; keyContacts: any[]; archived?: boolean; archivedDate?: string; }
 interface Transaction { id: string; propertyId: string; propertyAddress: string; type: 'income' | 'expense'; category: string; dateStart: string; dateEnd?: string; amount: number; description?: string; supplier?: string; }
 interface MaintenanceIssue { id: string; propertyId: string; propertyAddress: string; issue: string; dateRaised: string; dateResolved?: string; status: 'Open' | 'Closed'; description?: string; resolution?: string; costToResolve?: number; }
 interface Document { id: string; propertyId: string; propertyAddress: string; category: string; documentDate: string; description: string; driveViewLink: string; driveFileName: string; certificateType?: string; expiryDate?: string; issueDate?: string; epcRating?: string; applianceName?: string; applianceMake?: string; applianceModel?: string; applianceSerial?: string; }
@@ -107,6 +107,9 @@ type ModalType =
   | { type: 'editAgent'; property: Property }
   | { type: 'addRentHistory'; property: Property }
   | { type: 'addContact'; property: Property }
+  | { type: 'addRenovation'; property: Property }
+  | { type: 'addAppliance'; property: Property }
+  | { type: 'editAppliance'; property: Property; appliance: any }
   | null;
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -179,10 +182,22 @@ export default function AppShell() {
 
   // Build unique owner list from all properties
   const allOwners = (() => {
-    const map = new Map<string, string>();
-    properties.forEach(p => p.owners.forEach(o => { if (o.id && o.name) map.set(o.id, o.name); }));
-    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+    // Deduplicate by name (case-insensitive) — same person may have different IDs across properties
+    const byName = new Map<string, { id: string; name: string }>();
+    properties.forEach(p => p.owners.forEach(o => {
+      if (!o.name) return;
+      const key = o.name.trim().toLowerCase();
+      if (!byName.has(key)) byName.set(key, { id: o.id, name: o.name.trim() });
+    }));
+    return Array.from(byName.values());
   })();
+
+  // Total invested cost = purchase price + all renovations
+  function totalInvested(p: Property): number {
+    const purchase = p.purchasePrice || 0;
+    const renos = (p.renovations || []).reduce((s: number, r: any) => s + (r.cost || 0), 0);
+    return purchase + renos;
+  }
 
   // Get ownership % for a property given the selected owner filter
   function getOwnershipPct(property: Property): number {
@@ -249,8 +264,17 @@ export default function AppShell() {
   async function savePropertyPatch(propId: string, patch: Partial<Property>) {
     const prop = properties.find(p => p.id === propId);
     if (!prop) return;
+    // Ensure array fields always present to avoid API validation errors
+    const safeBase = {
+      ...prop,
+      renovations: prop.renovations || [],
+      appliances: prop.appliances || [],
+      rentHistory: prop.rentHistory || [],
+      keyContacts: prop.keyContacts || [],
+      owners: prop.owners || [],
+    };
     try {
-      await saveProperty({ ...prop, ...patch });
+      await saveProperty({ ...safeBase, ...patch });
     } catch {
       // error already shown via saveProperty's catch block
     }
@@ -428,11 +452,23 @@ export default function AppShell() {
     const displayExpense = filterOwnerId ? ownerExpense : totalExpense;
     const displayNet     = filterOwnerId ? ownerNet     : totalNet;
 
-    const netPct = displayIncome > 0 ? ((displayNet / displayIncome) * 100).toFixed(1) : '—';
+    // Net % = (income - agent fees) / income  — income less managing agent fees only
+    const agentFees = fps.reduce((s, p) => {
+      const propEnd = getPropertyEnd(p);
+      const effEnd = propEnd < end ? propEnd : end;
+      const ptxns = transactions.filter(t => t.propertyId === p.id && txInRange(t, start, effEnd));
+      const pct = getOwnershipPct(p);
+      return s + ptxns.filter(t => t.type === 'expense' && t.category === 'Managing Agent fees')
+        .reduce((ss, t) => ss + apportionAmount(t, start, effEnd) * pct / 100, 0);
+    }, 0);
+    const netPct = displayIncome > 0 ? (((displayIncome - agentFees) / displayIncome) * 100).toFixed(1) : '—';
     const profitPct = displayIncome > 0 ? ((displayNet / displayIncome) * 100).toFixed(1) : '—';
-    const yieldProps = fps.filter(p => p.currentValue && p.tenant && getOwnershipPct(p) > 0);
+    const yieldProps = fps.filter(p => (p.currentValue || totalInvested(p) > 0) && p.tenant && getOwnershipPct(p) > 0);
     const avgYield = yieldProps.length > 0
-      ? (yieldProps.reduce((s, p) => s + ((p.tenant!.rentPcm * 12) / p.currentValue!) * 100, 0) / yieldProps.length).toFixed(1)
+      ? (yieldProps.reduce((s, p) => {
+          const basis = p.currentValue || totalInvested(p);
+          return s + (basis > 0 ? ((p.tenant!.rentPcm * 12) / basis) * 100 : 0);
+        }, 0) / yieldProps.length).toFixed(1)
       : '—';
     const expiredCerts = documents.filter(d => d.category === 'Certificates' && (daysUntil(d.expiryDate) ?? 1) < 0);
     const warnCerts = documents.filter(d => d.category === 'Certificates' && (daysUntil(d.expiryDate) ?? 999) >= 0 && (daysUntil(d.expiryDate) ?? 999) < 60);
@@ -531,7 +567,7 @@ export default function AppShell() {
                   <CertCell type="Gas Safety" label="Gas" />
                   <CertCell type="EPC" label="EPC" />
                   <CertCell type="EICR" label="EICR" />
-                  <CertCell type="Other" label="Ins." />
+                  <CertCell type="Insurance" label="Ins." />
                 </div>
               </div>
             );
@@ -552,7 +588,7 @@ export default function AppShell() {
           const ptxns = transactions.filter(t => t.propertyId === p.id && txInRange(t, start, effectiveEnd));
           const pInc = ptxns.filter(t => t.type === 'income').reduce((s, t) => s + apportionAmount(t, start, effectiveEnd), 0);
           const pExp = ptxns.filter(t => t.type === 'expense').reduce((s, t) => s + apportionAmount(t, start, effectiveEnd), 0);
-          const yld = p.currentValue && p.tenant ? ((p.tenant.rentPcm * 12 / p.currentValue) * 100).toFixed(1) : '—';
+          const basis = p.currentValue || totalInvested(p); const yld = basis > 0 && p.tenant ? ((p.tenant.rentPcm * 12 / basis) * 100).toFixed(1) : '—';
           return (
             <div key={p.id} style={{ ...card, cursor: 'pointer', opacity: p.archived ? 0.7 : 1 }} onClick={() => { setDetailPropId(p.id); setDetailTab('tenant'); }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
@@ -668,8 +704,12 @@ export default function AppShell() {
                 <div style={card}>
                   <IR label="Purchase Price" value={p.purchasePrice ? fmt(p.purchasePrice) : undefined} />
                   <IR label="Purchase Date" value={fmtDate(p.purchaseDate)} />
+                  {(p.renovations || []).length > 0 && (
+                    <IR label="Total Renovations" value={fmt((p.renovations || []).reduce((s: number, r: any) => s + r.cost, 0))} />
+                  )}
+                  <IR label="Total Invested" value={totalInvested(p) > 0 ? fmt(totalInvested(p)) : undefined} />
                   <IR label="Current Value" value={p.currentValue ? fmt(p.currentValue) : undefined} />
-                  <IR label="Gross Yield" value={p.currentValue && p.tenant ? `${((p.tenant.rentPcm * 12 / p.currentValue) * 100).toFixed(1)}%` : undefined} />
+                  <IR label="Gross Yield" value={p.tenant && (p.currentValue || totalInvested(p) > 0) ? `${((p.tenant.rentPcm * 12 / (p.currentValue || totalInvested(p))) * 100).toFixed(1)}%` : undefined} />
                   {p.archived && p.archivedDate && <IR label="Archived" value={fmtDate(p.archivedDate)} />}
                   <div style={{ paddingTop: 12 }}>
                     <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Ownership</div>
@@ -681,6 +721,26 @@ export default function AppShell() {
                     ))}
                   </div>
                   <button onClick={() => setModal({ type: 'editProperty', property: p })} style={{ ...btnFullSec, marginTop: 16 }}>Edit property details</button>
+                </div>
+
+                {/* Renovations */}
+                <div style={{ ...card }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Renovations</div>
+                    <button onClick={() => setModal({ type: 'addRenovation', property: p })} style={{ fontSize: 13, color: 'var(--blue)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>+ Add</button>
+                  </div>
+                  {(p.renovations || []).length === 0
+                    ? <div style={{ fontSize: 13, color: 'var(--text3)' }}>No renovations recorded</div>
+                    : [...(p.renovations || [])].sort((a: any, b: any) => b.date.localeCompare(a.date)).map((r: any) => (
+                      <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '80px 1fr auto auto', alignItems: 'baseline', gap: 8, padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                        <span style={{ fontWeight: 500, color: 'var(--red)' }}>{fmt(r.cost)}</span>
+                        <span>{r.description}</span>
+                        <span style={{ color: 'var(--text3)', fontSize: 12 }}>{fmtDate(r.date)}</span>
+                        <button onClick={() => savePropertyPatch(p.id, { renovations: (p.renovations || []).filter((x: any) => x.id !== r.id) })}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 14, padding: '0 2px' }}>✕</button>
+                      </div>
+                    ))
+                  }
                 </div>
                 {/* Archive / Restore / Delete */}
                 {!p.archived
@@ -722,14 +782,38 @@ export default function AppShell() {
                 ))}
                 {propDocs.filter(d => d.category === 'Certificates').length === 0 && <div style={{ color: 'var(--text2)', fontSize: 14, padding: '12px 0' }}>No certificates — upload via Documents tab</div>}
 
-                <div style={sectionLabel}>Appliances</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, fontWeight: 500, color: 'var(--text2)', textTransform: 'uppercase' as const, letterSpacing: '0.05em', margin: '20px 0 8px' }}>
+                  <span>Appliances</span>
+                  <button onClick={() => setModal({ type: 'addAppliance', property: p })} style={{ fontSize: 13, color: 'var(--blue)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>+ Add</button>
+                </div>
+                {/* Property-level appliances (no document required) */}
+                {(p.appliances || []).map((a: any) => (
+                  <div key={a.id} style={{ ...card, marginBottom: 8 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 14, fontWeight: 500 }}>{a.name}</div>
+                        <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>{[a.make, a.model, a.serialNumber && `S/N: ${a.serialNumber}`].filter(Boolean).join(' · ')}</div>
+                        {a.supplier && <div style={{ fontSize: 12, color: 'var(--text2)' }}>Supplier: {a.supplier}</div>}
+                        {a.purchaseDate && <div style={{ fontSize: 12, color: 'var(--text2)' }}>Purchased: {fmtDate(a.purchaseDate)}</div>}
+                        {a.notes && <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>{a.notes}</div>}
+                      </div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button onClick={() => setModal({ type: 'editAppliance', property: p, appliance: a })} style={{ ...iconBtn, fontSize: 12 }}>✎</button>
+                        <button onClick={() => { if (confirm('Delete this appliance?')) savePropertyPatch(p.id, { appliances: (p.appliances || []).filter((x: any) => x.id !== a.id) }); }} style={iconBtn}>✕</button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {/* Document-linked appliances */}
                 {propDocs.filter(d => d.category === 'Appliances').map(d => (
-                  <div key={d.id} style={card}>
-                    <div style={{ fontSize: 14, fontWeight: 500 }}>{d.applianceName}</div>
+                  <div key={d.id} style={{ ...card, marginBottom: 8, opacity: 0.8 }}>
+                    <div style={{ fontSize: 14, fontWeight: 500 }}>{d.applianceName} <span style={{ fontSize: 11, color: 'var(--text3)' }}>(from document)</span></div>
                     <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>{[d.applianceMake, d.applianceModel, d.applianceSerial && `S/N: ${d.applianceSerial}`].filter(Boolean).join(' · ')}</div>
                   </div>
                 ))}
-                {propDocs.filter(d => d.category === 'Appliances').length === 0 && <div style={{ color: 'var(--text2)', fontSize: 14, padding: '12px 0' }}>No appliances — upload via Documents tab</div>}
+                {(p.appliances || []).length === 0 && propDocs.filter(d => d.category === 'Appliances').length === 0 && (
+                  <div style={{ color: 'var(--text2)', fontSize: 14, padding: '12px 0' }}>No appliances recorded</div>
+                )}
               </>
             )}
 
@@ -838,7 +922,7 @@ export default function AppShell() {
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     <div style={{ fontSize: 15, fontWeight: 500, color: t.type === 'income' ? 'var(--green)' : 'var(--red)' }}>{t.type === 'expense' ? '-' : ''}{fmt(prorated)}</div>
-                    {isProrated && <div style={{ fontSize: 11, color: 'var(--text3)' }}>of {fmt(t.amount)}</div>}
+                    {isProrated && <div style={{ fontSize: 11, color: 'var(--text3)' }}>apportioned · {fmt(t.amount)} total</div>}
                   </div>
                   <button onClick={() => deleteTxn(t.id)} style={iconBtn}>✕</button>
                 </div>
@@ -905,7 +989,7 @@ export default function AppShell() {
                 <div key={d.id} style={{ ...card, display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', padding: '12px 14px' }}
                   onClick={() => window.open(d.driveViewLink, '_blank', 'noopener,noreferrer')}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.description}</div>
+                    <div style={{ fontSize: 14, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.description || d.driveFileName.replace(/_/g,' ').replace(/\.[^.]+$/,'')}</div>
                     <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>{d.category}{d.certificateType ? ` · ${d.certificateType}` : ''}{d.epcRating ? ` · Band ${d.epcRating}` : ''} · {fmtDate(d.documentDate)}</div>
                     {d.expiryDate && <div style={{ fontSize: 12, color: 'var(--amber)', marginTop: 2 }}>Expires {fmtDate(d.expiryDate)}</div>}
                   </div>
@@ -993,6 +1077,9 @@ export default function AppShell() {
       {modal?.type === 'editAgent' && <AgentModal property={modal.property} onSave={patch => savePropertyPatch(modal.property.id, patch)} onClose={() => setModal(null)} />}
       {modal?.type === 'addRentHistory' && <RentHistoryModal property={modal.property} onSave={patch => savePropertyPatch(modal.property.id, patch)} onClose={() => setModal(null)} />}
       {modal?.type === 'addContact' && <ContactModal property={modal.property} onSave={patch => savePropertyPatch(modal.property.id, patch)} onClose={() => setModal(null)} />}
+      {modal?.type === 'addRenovation' && <RenovationModal property={modal.property} onSave={patch => savePropertyPatch(modal.property.id, patch)} onClose={() => setModal(null)} />}
+      {modal?.type === 'addAppliance' && <ApplianceModal property={modal.property} onSave={patch => savePropertyPatch(modal.property.id, patch)} onClose={() => setModal(null)} />}
+      {modal?.type === 'editAppliance' && <ApplianceModal property={modal.property} appliance={modal.appliance} onSave={patch => savePropertyPatch(modal.property.id, patch)} onClose={() => setModal(null)} />}
 
       {/* Toast notification */}
       {toast && (

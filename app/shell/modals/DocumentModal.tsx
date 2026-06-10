@@ -6,7 +6,7 @@ import { Property } from '@/types';
 import { format, addYears } from 'date-fns';
 
 const DOC_CATS = ['Tenancy', 'Rent', 'Certificates', 'Appliances', 'Reference', 'Other'];
-const CERT_TYPES = ['Gas Safety', 'EPC', 'EICR', 'Other'];
+const CERT_TYPES = ['Gas Safety', 'EPC', 'EICR', 'Insurance', 'Other'];
 
 interface Props {
   properties: Property[];

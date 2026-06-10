@@ -54,6 +54,8 @@ export async function POST(req: NextRequest) {
       lettingAgent: body.lettingAgent,
       rentHistory: body.rentHistory || [],
       keyContacts: body.keyContacts || [],
+      renovations: body.renovations || [],
+      appliances: body.appliances || [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };

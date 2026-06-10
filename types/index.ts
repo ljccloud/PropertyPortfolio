@@ -44,6 +44,25 @@ export interface KeyContact {
   notes?: string;
 }
 
+export interface Renovation {
+  id: string;
+  date: string;      // ISO date
+  cost: number;
+  description: string;
+}
+
+export interface Appliance {
+  id: string;
+  name: string;
+  make?: string;
+  model?: string;
+  serialNumber?: string;
+  purchaseDate?: string;
+  supplier?: string;
+  notes?: string;
+  documentId?: string; // links to a Document if one was uploaded
+}
+
 export interface Property {
   id: string;
   address: string;
@@ -51,13 +70,15 @@ export interface Property {
   purchasePrice?: number;
   purchaseDate?: string;
   currentValue?: number;
+  renovations?: Renovation[];
+  appliances?: Appliance[];
   owners: Owner[];
   tenant?: Tenant;
   lettingAgent?: LettingAgent;
   rentHistory: RentHistoryEntry[];
   keyContacts: KeyContact[];
   archived?: boolean;
-  archivedDate?: string; // ISO date — transactions after this date excluded from calcs
+  archivedDate?: string;
   createdAt?: string;
   updatedAt?: string;
 }

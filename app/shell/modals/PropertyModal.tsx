@@ -52,6 +52,8 @@ export default function PropertyModal({ property, onSave, onClose }: Props) {
         owners: form.owners.map(o => ({ ...o, percentage: Number(o.percentage) })),
         rentHistory: property?.rentHistory || [],
         keyContacts: property?.keyContacts || [],
+        renovations: (property as any)?.renovations || [],
+        appliances: (property as any)?.appliances || [],
       });
       onClose();
     } catch {

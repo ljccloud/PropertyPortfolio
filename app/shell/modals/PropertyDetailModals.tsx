@@ -242,3 +242,132 @@ export function ContactModal({ property, onSave, onClose }: ContactProps) {
     </ModalShell>
   );
 }
+
+// ─── Renovation Modal ─────────────────────────────────────────────────────────
+
+interface RenovationProps {
+  property: Property;
+  onSave: (data: Partial<Property>) => Promise<void>;
+  onClose: () => void;
+}
+
+export function RenovationModal({ property, onSave, onClose }: RenovationProps) {
+  const [form, setForm] = useState({ description: '', cost: '', date: new Date().toISOString().slice(0, 10) });
+  const [saving, setSaving] = useState(false);
+  function set(key: string, v: any) { setForm(f => ({ ...f, [key]: v })); }
+
+  async function handleSave() {
+    if (!form.description.trim() || !form.cost) return;
+    setSaving(true);
+    try {
+      await onSave({
+        renovations: [
+          ...((property as any).renovations || []),
+          { id: uid(), date: form.date, cost: Number(form.cost), description: form.description.trim() }
+        ]
+      });
+      onClose();
+    } catch {} finally { setSaving(false); }
+  }
+
+  return (
+    <ModalShell title="Add Renovation" onClose={onClose}>
+      <Field label="Description">
+        <input style={inputStyle} type="text" value={form.description}
+          onChange={e => set('description', e.target.value)} placeholder="e.g. Kitchen refurbishment" />
+      </Field>
+      <Grid2>
+        <Field label="Cost (£)">
+          <input style={inputStyle} type="number" step="0.01" value={form.cost}
+            onChange={e => set('cost', e.target.value)} placeholder="0.00" />
+        </Field>
+        <Field label="Date">
+          <input style={inputStyle} type="date" value={form.date}
+            onChange={e => set('date', e.target.value)} />
+        </Field>
+      </Grid2>
+      <button onClick={handleSave} disabled={saving || !form.description.trim() || !form.cost}
+        style={{ ...btnPrimary, opacity: saving || !form.description.trim() || !form.cost ? 0.6 : 1 }}>
+        {saving ? 'Saving…' : 'Add Renovation'}
+      </button>
+    </ModalShell>
+  );
+}
+
+// ─── Appliance Modal ──────────────────────────────────────────────────────────
+
+interface ApplianceProps {
+  property: Property;
+  appliance?: any;
+  onSave: (data: Partial<Property>) => Promise<void>;
+  onClose: () => void;
+}
+
+export function ApplianceModal({ property, appliance, onSave, onClose }: ApplianceProps) {
+  const isEdit = !!appliance;
+  const [form, setForm] = useState({
+    name: appliance?.name || '',
+    make: appliance?.make || '',
+    model: appliance?.model || '',
+    serialNumber: appliance?.serialNumber || '',
+    purchaseDate: appliance?.purchaseDate || '',
+    supplier: appliance?.supplier || '',
+    notes: appliance?.notes || '',
+  });
+  const [saving, setSaving] = useState(false);
+  function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
+
+  async function handleSave() {
+    if (!form.name.trim()) return;
+    setSaving(true);
+    try {
+      const existing = (property as any).appliances || [];
+      const updated = isEdit
+        ? existing.map((a: any) => a.id === appliance.id ? { ...a, ...form } : a)
+        : [...existing, { id: uid(), ...form }];
+      await onSave({ appliances: updated } as any);
+      onClose();
+    } catch {} finally { setSaving(false); }
+  }
+
+  return (
+    <ModalShell title={isEdit ? 'Edit Appliance' : 'Add Appliance'} onClose={onClose}>
+      <Field label="Name">
+        <input style={inputStyle} type="text" value={form.name}
+          onChange={e => set('name', e.target.value)} placeholder="e.g. Boiler, Fridge, Oven" />
+      </Field>
+      <Grid2>
+        <Field label="Make">
+          <input style={inputStyle} type="text" value={form.make}
+            onChange={e => set('make', e.target.value)} placeholder="e.g. Worcester Bosch" />
+        </Field>
+        <Field label="Model">
+          <input style={inputStyle} type="text" value={form.model}
+            onChange={e => set('model', e.target.value)} />
+        </Field>
+      </Grid2>
+      <Field label="Serial Number">
+        <input style={inputStyle} type="text" value={form.serialNumber}
+          onChange={e => set('serialNumber', e.target.value)} />
+      </Field>
+      <Grid2>
+        <Field label="Purchase Date">
+          <input style={inputStyle} type="date" value={form.purchaseDate}
+            onChange={e => set('purchaseDate', e.target.value)} />
+        </Field>
+        <Field label="Supplier">
+          <input style={inputStyle} type="text" value={form.supplier}
+            onChange={e => set('supplier', e.target.value)} />
+        </Field>
+      </Grid2>
+      <Field label="Notes">
+        <textarea style={{ ...inputStyle, resize: 'none' as const }} rows={2} value={form.notes}
+          onChange={e => set('notes', e.target.value)} />
+      </Field>
+      <button onClick={handleSave} disabled={saving || !form.name.trim()}
+        style={{ ...btnPrimary, opacity: saving || !form.name.trim() ? 0.6 : 1 }}>
+        {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Appliance'}
+      </button>
+    </ModalShell>
+  );
+}
