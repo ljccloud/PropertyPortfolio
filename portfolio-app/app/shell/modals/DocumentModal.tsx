@@ -39,21 +39,6 @@ export default function DocumentModal({ properties, defaultPropertyId, onUpload,
 
   function set(key: string, v: any) { setForm(f => ({ ...f, [key]: v })); }
 
-  // When category changes: if switching TO Certificates, pre-fill description from certificateType;
-  // otherwise clear description so stale values don't bleed through
-  function setCategory(cat: string) {
-    setForm(f => ({
-      ...f,
-      category: cat,
-      description: cat === 'Certificates' ? f.certificateType : '',
-    }));
-  }
-
-  // When certificateType changes, auto-fill description for convenience
-  function setCertificateType(type: string) {
-    setForm(f => ({ ...f, certificateType: type, description: type }));
-  }
-
   function setExpiryPreset(years: number) {
     if (!form.issueDate) return;
     const d = addYears(new Date(form.issueDate + 'T00:00:00'), years);
@@ -89,7 +74,7 @@ export default function DocumentModal({ properties, defaultPropertyId, onUpload,
 
       <Grid2>
         <Field label="Category">
-          <select style={selectStyle} value={form.category} onChange={e => setCategory(e.target.value)}>
+          <select style={selectStyle} value={form.category} onChange={e => set('category', e.target.value)}>
             {DOC_CATS.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </Field>
@@ -109,7 +94,7 @@ export default function DocumentModal({ properties, defaultPropertyId, onUpload,
         <div style={{ background: 'var(--surface2)', borderRadius: 'var(--radius-sm)', padding: '12px 14px', marginBottom: 12 }}>
           <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 10 }}>Certificate Details</div>
           <Field label="Type">
-            <select style={selectStyle} value={form.certificateType} onChange={e => setCertificateType(e.target.value)}>
+            <select style={selectStyle} value={form.certificateType} onChange={e => set('certificateType', e.target.value)}>
               {CERT_TYPES.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </Field>

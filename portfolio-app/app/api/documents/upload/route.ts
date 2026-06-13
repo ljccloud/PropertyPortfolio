@@ -23,12 +23,11 @@ export async function POST(req: NextRequest) {
     if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 });
 
     const drive = getDriveClient(session.accessToken);
-    // Resolve data folder first — this also populates the root folder cache.
-    // getPropertyFolderId depends on getRootFolderId internally, so running them
-    // in parallel on a cold start caused a race that created duplicate root folders
-    // and failed the first save. Sequential resolution is safe and still fast.
-    const dataFolderId = await getDataFolderId(drive, session.accessToken);
-    const propFolderId = await getPropertyFolderId(drive, metadata.propertyAddress, session.accessToken);
+    // Get both folder IDs in parallel to reduce Drive API call time
+    const [dataFolderId, propFolderId] = await Promise.all([
+      getDataFolderId(drive, session.accessToken),
+      getPropertyFolderId(drive, metadata.propertyAddress, session.accessToken),
+    ]);
 
     const ext = '.' + (file.name.split('.').pop() || 'pdf');
     const fileName = buildFileName(
