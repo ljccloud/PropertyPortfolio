@@ -27,10 +27,10 @@ export async function GET() {
 
     // Load all data files sequentially using the same folderId
     const [properties, transactions, maintenance, documents] = await Promise.all([
-      readJsonFile<Property[]>(drive, 'properties.json', folderId, accessToken),
-      readJsonFile<Transaction[]>(drive, 'transactions.json', folderId, accessToken),
-      readJsonFile<MaintenanceIssue[]>(drive, 'maintenance.json', folderId, accessToken),
-      readJsonFile<Document[]>(drive, 'documents.json', folderId, accessToken),
+      readJsonFile<Property[]>(drive, 'properties.json', folderId, session.accessToken),
+      readJsonFile<Transaction[]>(drive, 'transactions.json', folderId, session.accessToken),
+      readJsonFile<MaintenanceIssue[]>(drive, 'maintenance.json', folderId, session.accessToken),
+      readJsonFile<Document[]>(drive, 'documents.json', folderId, session.accessToken),
     ]);
 
     return NextResponse.json({

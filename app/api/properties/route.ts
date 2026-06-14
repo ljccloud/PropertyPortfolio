@@ -13,7 +13,7 @@ async function getSession() {
 async function getProperties(accessToken: string): Promise<Property[]> {
   const drive = getDriveClient(accessToken);
   const folderId = await getDataFolderId(drive, accessToken);
-  const data = await readJsonFile<Property[]>(drive, 'properties.json', folderId, session.accessToken);
+  const data = await readJsonFile<Property[]>(drive, 'properties.json', folderId, accessToken);
   return data || [];
 }
 

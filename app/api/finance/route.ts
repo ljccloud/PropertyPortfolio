@@ -13,7 +13,7 @@ async function getSession() {
 async function getTransactions(accessToken: string): Promise<Transaction[]> {
   const drive = getDriveClient(accessToken);
   const folderId = await getDataFolderId(drive, accessToken);
-  const data = await readJsonFile<Transaction[]>(drive, 'transactions.json', folderId, session.accessToken);
+  const data = await readJsonFile<Transaction[]>(drive, 'transactions.json', folderId, accessToken);
   return data || [];
 }
 
