@@ -23,10 +23,8 @@ export async function POST(req: NextRequest) {
     if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 });
 
     const drive = getDriveClient(session.accessToken);
-    // Resolve data folder first — this also populates the root folder cache.
-    // getPropertyFolderId depends on getRootFolderId internally, so running them
-    // in parallel on a cold start caused a race that created duplicate root folders
-    // and failed the first save. Sequential resolution is safe and still fast.
+    // Resolve data folder first to warm the root folder cache, then get property
+    // folder. These must be sequential as getPropertyFolderId depends on the root.
     const dataFolderId = await getDataFolderId(drive, session.accessToken);
     const propFolderId = await getPropertyFolderId(drive, metadata.propertyAddress, session.accessToken);
 
@@ -39,12 +37,17 @@ export async function POST(req: NextRequest) {
       ext
     );
 
-    const buffer = Buffer.from(await file.arrayBuffer());
+    // Read docs.json and convert file buffer in parallel while we have the folder IDs
+    const [buffer, existingDocs] = await Promise.all([
+      file.arrayBuffer().then(ab => Buffer.from(ab)),
+      readJsonFile<Document[]>(drive, 'documents.json', dataFolderId, session.accessToken).then(d => d || []),
+    ]);
+
     const { id: driveFileId, viewLink } = await uploadFile(
       drive, fileName, propFolderId, buffer, file.type || 'application/octet-stream'
     );
 
-    const docs = await readJsonFile<Document[]>(drive, 'documents.json', dataFolderId, session.accessToken) || [];
+    const docs = existingDocs;
     const newDoc: Document = {
       id: uuid(),
       driveFileId,

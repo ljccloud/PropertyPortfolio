@@ -504,7 +504,19 @@ export default function AppShell() {
           <Metric label="Profit" value={fmt(displayProfit)} color={displayProfit >= 0 ? 'var(--green)' : 'var(--red)'} />
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8, marginBottom: 16 }}>
-          <Metric label="Rent PCM" value={fmt(totalRentPcm)} sub={`${fps.filter(p => p.tenant && getOwnershipPct(p) > 0).length} let`} />
+          {(() => {
+            const fullRentPcm = fps.filter(p => p.tenant).reduce((s, p) => s + (p.tenant?.rentPcm || 0), 0);
+            const letCount = fps.filter(p => p.tenant && getOwnershipPct(p) > 0).length;
+            return (
+              <Metric
+                label="Rent PCM"
+                value={fmt(totalRentPcm)}
+                sub={filterOwnerId
+                  ? `${fmt(fullRentPcm)} full · ${letCount} let`
+                  : `${letCount} let`}
+              />
+            );
+          })()}
           <Metric label="Net %" value={netPct === '—' ? '—' : `${netPct}%`} color={netPct !== '—' && parseFloat(netPct) >= 0 ? 'var(--green)' : 'var(--red)'} />
           <Metric label="Profit %" value={profitPct === '—' ? '—' : `${profitPct}%`} />
           <Metric label="Avg Yield" value={avgYield === '—' ? '—' : `${avgYield}%`} />
@@ -886,7 +898,7 @@ export default function AppShell() {
                     onClick={() => window.open(d.driveViewLink, '_blank', 'noopener,noreferrer')}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 14, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.description}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>{d.category}{d.certificateType ? ` · ${d.certificateType}` : ''}{d.epcRating ? ` · Band ${d.epcRating}` : ''} · {fmtDate(d.documentDate)}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>{d.category}{d.category === 'Certificates' && d.certificateType ? ` · ${d.certificateType}` : ''}{d.category === 'Certificates' && d.epcRating ? ` · Band ${d.epcRating}` : ''}{d.description ? ` · ${d.description}` : ''} · {fmtDate(d.documentDate)}</div>
                       {d.expiryDate && <div style={{ fontSize: 12, color: 'var(--amber)', marginTop: 2 }}>Expires {fmtDate(d.expiryDate)}</div>}
                     </div>
                     <button onClick={e => { e.stopPropagation(); if (confirm('Delete this document?')) deleteDoc(d.id); }} style={iconBtn}>✕</button>
@@ -1008,7 +1020,7 @@ export default function AppShell() {
                   onClick={() => window.open(d.driveViewLink, '_blank', 'noopener,noreferrer')}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.description || d.driveFileName.replace(/_/g,' ').replace(/\.[^.]+$/,'')}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>{d.category}{d.certificateType ? ` · ${d.certificateType}` : ''}{d.epcRating ? ` · Band ${d.epcRating}` : ''} · {fmtDate(d.documentDate)}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>{d.category}{d.category === 'Certificates' && d.certificateType ? ` · ${d.certificateType}` : ''}{d.category === 'Certificates' && d.epcRating ? ` · Band ${d.epcRating}` : ''}{d.description ? ` · ${d.description}` : ''} · {fmtDate(d.documentDate)}</div>
                     {d.expiryDate && <div style={{ fontSize: 12, color: 'var(--amber)', marginTop: 2 }}>Expires {fmtDate(d.expiryDate)}</div>}
                   </div>
                   <button onClick={e => { e.stopPropagation(); if (confirm('Delete this document?')) deleteDoc(d.id); }} style={iconBtn}>✕</button>
