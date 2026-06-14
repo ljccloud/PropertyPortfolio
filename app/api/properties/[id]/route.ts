@@ -18,7 +18,7 @@ export async function GET(_: NextRequest, { params }: Params) {
   try {
     const drive = getDriveClient(session.accessToken);
     const folderId = await getDataFolderId(drive, session.accessToken);
-    const properties = await readJsonFile<Property[]>(drive, 'properties.json', folderId) || [];
+    const properties = await readJsonFile<Property[]>(drive, 'properties.json', folderId, session.accessToken) || [];
     const property = properties.find(p => p.id === id);
     if (!property) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     return NextResponse.json({ data: property });
@@ -36,11 +36,11 @@ export async function PUT(req: NextRequest, { params }: Params) {
     const body = await req.json();
     const drive = getDriveClient(session.accessToken);
     const folderId = await getDataFolderId(drive, session.accessToken);
-    const properties = await readJsonFile<Property[]>(drive, 'properties.json', folderId) || [];
+    const properties = await readJsonFile<Property[]>(drive, 'properties.json', folderId, session.accessToken) || [];
     const idx = properties.findIndex(p => p.id === id);
     if (idx === -1) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     properties[idx] = { ...properties[idx], ...body, id, updatedAt: new Date().toISOString() };
-    await writeJsonFile(drive, 'properties.json', folderId, properties);
+    await writeJsonFile(drive, 'properties.json', folderId, properties, session.accessToken);
     console.log(`PUT /api/properties/${id} success, returning data for:`, properties[idx].address);
     return NextResponse.json({ data: properties[idx] });
   } catch (e: any) {
@@ -56,9 +56,9 @@ export async function DELETE(_: NextRequest, { params }: Params) {
   try {
     const drive = getDriveClient(session.accessToken);
     const folderId = await getDataFolderId(drive, session.accessToken);
-    const properties = await readJsonFile<Property[]>(drive, 'properties.json', folderId) || [];
+    const properties = await readJsonFile<Property[]>(drive, 'properties.json', folderId, session.accessToken) || [];
     const filtered = properties.filter(p => p.id !== id);
-    await writeJsonFile(drive, 'properties.json', folderId, filtered);
+    await writeJsonFile(drive, 'properties.json', folderId, filtered, session.accessToken);
     return NextResponse.json({ data: { deleted: true } });
   } catch (e: any) {
     console.error(`DELETE /api/properties/${id} error:`, e.message);

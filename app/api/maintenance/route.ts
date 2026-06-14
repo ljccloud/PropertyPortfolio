@@ -13,7 +13,7 @@ async function getSession() {
 async function getIssues(accessToken: string): Promise<MaintenanceIssue[]> {
   const drive = getDriveClient(accessToken);
   const folderId = await getDataFolderId(drive, accessToken);
-  const data = await readJsonFile<MaintenanceIssue[]>(drive, 'maintenance.json', folderId);
+  const data = await readJsonFile<MaintenanceIssue[]>(drive, 'maintenance.json', folderId, accessToken);
   return data || [];
 }
 
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
       updatedAt: new Date().toISOString(),
     };
     issues.push(newIssue);
-    await writeJsonFile(drive, 'maintenance.json', folderId, issues);
+    await writeJsonFile(drive, 'maintenance.json', folderId, issues, session.accessToken);
     return NextResponse.json({ data: newIssue });
   } catch (e: any) {
     console.error('POST /api/maintenance error:', e.message);
@@ -72,7 +72,7 @@ export async function PUT(req: NextRequest) {
       updatedAt: new Date().toISOString(),
     };
     issues[idx] = updated;
-    await writeJsonFile(drive, 'maintenance.json', folderId, issues);
+    await writeJsonFile(drive, 'maintenance.json', folderId, issues, session.accessToken);
     return NextResponse.json({ data: updated });
   } catch (e: any) {
     console.error('PUT /api/maintenance error:', e.message);
@@ -89,7 +89,7 @@ export async function DELETE(req: NextRequest) {
     const folderId = await getDataFolderId(drive, session.accessToken);
     const issues = await getIssues(session.accessToken);
     const filtered = issues.filter(i => i.id !== id);
-    await writeJsonFile(drive, 'maintenance.json', folderId, filtered);
+    await writeJsonFile(drive, 'maintenance.json', folderId, filtered, session.accessToken);
     return NextResponse.json({ data: { deleted: true } });
   } catch (e: any) {
     console.error('DELETE /api/maintenance error:', e.message);

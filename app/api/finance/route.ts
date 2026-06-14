@@ -13,7 +13,7 @@ async function getSession() {
 async function getTransactions(accessToken: string): Promise<Transaction[]> {
   const drive = getDriveClient(accessToken);
   const folderId = await getDataFolderId(drive, accessToken);
-  const data = await readJsonFile<Transaction[]>(drive, 'transactions.json', folderId);
+  const data = await readJsonFile<Transaction[]>(drive, 'transactions.json', folderId, session.accessToken);
   return data || [];
 }
 
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
       updatedAt: new Date().toISOString(),
     };
     transactions.push(newTx);
-    await writeJsonFile(drive, 'transactions.json', folderId, transactions);
+    await writeJsonFile(drive, 'transactions.json', folderId, transactions, session.accessToken);
     return NextResponse.json({ data: newTx });
   } catch (e: any) {
     console.error('POST /api/finance error:', e.message);
@@ -66,7 +66,7 @@ export async function PUT(req: NextRequest) {
     const idx = transactions.findIndex(t => t.id === id);
     if (idx === -1) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     transactions[idx] = { ...transactions[idx], ...updates, id, updatedAt: new Date().toISOString() };
-    await writeJsonFile(drive, 'transactions.json', folderId, transactions);
+    await writeJsonFile(drive, 'transactions.json', folderId, transactions, session.accessToken);
     return NextResponse.json({ data: transactions[idx] });
   } catch (e: any) {
     console.error('PUT /api/finance error:', e.message);
@@ -83,7 +83,7 @@ export async function DELETE(req: NextRequest) {
     const folderId = await getDataFolderId(drive, session.accessToken);
     const transactions = await getTransactions(session.accessToken);
     const filtered = transactions.filter(t => t.id !== id);
-    await writeJsonFile(drive, 'transactions.json', folderId, filtered);
+    await writeJsonFile(drive, 'transactions.json', folderId, filtered, session.accessToken);
     return NextResponse.json({ data: { deleted: true } });
   } catch (e: any) {
     console.error('DELETE /api/finance error:', e.message);

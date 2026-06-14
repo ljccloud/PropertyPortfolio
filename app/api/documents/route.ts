@@ -12,7 +12,7 @@ async function getSession() {
 async function getDocuments(accessToken: string): Promise<Document[]> {
   const drive = getDriveClient(accessToken);
   const folderId = await getDataFolderId(drive, accessToken);
-  const data = await readJsonFile<Document[]>(drive, 'documents.json', folderId);
+  const data = await readJsonFile<Document[]>(drive, 'documents.json', folderId, session.accessToken);
   return data || [];
 }
 
@@ -44,7 +44,7 @@ export async function DELETE(req: NextRequest) {
       try { await deleteFile(drive, doc.driveFileId); } catch {}
     }
     const filtered = docs.filter(d => d.id !== id);
-    await writeJsonFile(drive, 'documents.json', folderId, filtered);
+    await writeJsonFile(drive, 'documents.json', folderId, filtered, session.accessToken);
     return NextResponse.json({ data: { deleted: true } });
   } catch (e: any) {
     console.error('DELETE /api/documents error:', e.message);

@@ -53,11 +53,13 @@ export interface Renovation {
 
 export interface Appliance {
   id: string;
+  propertyId?: string;
   name: string;
   make?: string;
   model?: string;
   serialNumber?: string;
   purchaseDate?: string;
+  warrantyEndDate?: string;
   supplier?: string;
   notes?: string;
   documentId?: string; // links to a Document if one was uploaded
@@ -97,18 +99,7 @@ export interface Certificate {
   documentId?: string; // links to Document
 }
 
-export interface Appliance {
-  id: string;
-  propertyId: string;
-  name: string;
-  make?: string;
-  model?: string;
-  serialNumber?: string;
-  purchaseDate?: string;
-  warrantyEndDate?: string;
-  notes?: string;
-  documentId?: string;
-}
+
 
 // ─── Documents ──────────────────────────────────────────────────────────────
 

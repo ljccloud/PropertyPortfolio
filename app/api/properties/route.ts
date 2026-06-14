@@ -13,7 +13,7 @@ async function getSession() {
 async function getProperties(accessToken: string): Promise<Property[]> {
   const drive = getDriveClient(accessToken);
   const folderId = await getDataFolderId(drive, accessToken);
-  const data = await readJsonFile<Property[]>(drive, 'properties.json', folderId);
+  const data = await readJsonFile<Property[]>(drive, 'properties.json', folderId, session.accessToken);
   return data || [];
 }
 
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
     };
 
     properties.push(newProperty);
-    await writeJsonFile(drive, 'properties.json', folderId, properties);
+    await writeJsonFile(drive, 'properties.json', folderId, properties, session.accessToken);
     return NextResponse.json({ data: newProperty });
   } catch (e: any) {
     console.error('POST /api/properties error:', e.message);

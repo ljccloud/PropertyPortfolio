@@ -15,33 +15,39 @@ interface Props {
   onClose: () => void;
 }
 
+const defaultForm = {
+  propertyId: '',
+  category: 'Other',
+  documentDate: '',
+  description: '',
+  certificateType: 'Gas Safety',
+  issueDate: '',
+  expiryDate: '',
+  issuerNotes: '',
+  epcRating: '',
+  applianceName: '',
+  applianceMake: '',
+  applianceModel: '',
+  applianceSerial: '',
+  appliancePurchaseDate: '',
+  warrantyEndDate: '',
+  applianceNotes: '',
+};
+
 export default function DocumentModal({ properties, defaultPropertyId, onUpload, onClose }: Props) {
   const [form, setForm] = useState({
+    ...defaultForm,
     propertyId: defaultPropertyId || '',
-    category: 'Other',
     documentDate: format(new Date(), 'yyyy-MM-dd'),
-    description: '',
-    certificateType: 'Gas Safety',
-    issueDate: '',
-    expiryDate: '',
-    issuerNotes: '',
-    epcRating: '',
-    applianceName: '',
-    applianceMake: '',
-    applianceModel: '',
-    applianceSerial: '',
-    appliancePurchaseDate: '',
-    warrantyEndDate: '',
-    applianceNotes: '',
   });
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
 
   function set(key: string, v: any) { setForm(f => ({ ...f, [key]: v })); }
 
-  // When category changes: if switching TO Certificates, pre-fill description from certificateType;
+  // When category changes: auto-fill description from certificateType if switching to Certificates,
   // otherwise clear description so stale values don't bleed through
-  function setCategory(cat: string) {
+  function handleCategoryChange(cat: string) {
     setForm(f => ({
       ...f,
       category: cat,
@@ -49,8 +55,8 @@ export default function DocumentModal({ properties, defaultPropertyId, onUpload,
     }));
   }
 
-  // When certificateType changes, auto-fill description for convenience
-  function setCertificateType(type: string) {
+  // When certificate type changes: also update description to stay in sync
+  function handleCertTypeChange(type: string) {
     setForm(f => ({ ...f, certificateType: type, description: type }));
   }
 
@@ -74,8 +80,6 @@ export default function DocumentModal({ properties, defaultPropertyId, onUpload,
   }
 
   const canUpload = !!file && !!form.propertyId && !!form.description.trim();
-
-  // iOS Safari requires the label/input approach for file picking to work
   const fileInputId = 'doc-file-input-modal';
 
   return (
@@ -89,7 +93,7 @@ export default function DocumentModal({ properties, defaultPropertyId, onUpload,
 
       <Grid2>
         <Field label="Category">
-          <select style={selectStyle} value={form.category} onChange={e => setCategory(e.target.value)}>
+          <select style={selectStyle} value={form.category} onChange={e => handleCategoryChange(e.target.value)}>
             {DOC_CATS.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </Field>
@@ -109,7 +113,7 @@ export default function DocumentModal({ properties, defaultPropertyId, onUpload,
         <div style={{ background: 'var(--surface2)', borderRadius: 'var(--radius-sm)', padding: '12px 14px', marginBottom: 12 }}>
           <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 10 }}>Certificate Details</div>
           <Field label="Type">
-            <select style={selectStyle} value={form.certificateType} onChange={e => setCertificateType(e.target.value)}>
+            <select style={selectStyle} value={form.certificateType} onChange={e => handleCertTypeChange(e.target.value)}>
               {CERT_TYPES.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </Field>
@@ -180,7 +184,7 @@ export default function DocumentModal({ properties, defaultPropertyId, onUpload,
         </div>
       )}
 
-      {/* File picker — use label+input pattern for iOS Safari compatibility */}
+      {/* File picker */}
       <div style={{ marginBottom: 12 }}>
         <input
           id={fileInputId}
@@ -188,7 +192,6 @@ export default function DocumentModal({ properties, defaultPropertyId, onUpload,
           accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
           onChange={e => setFile(e.target.files?.[0] || null)}
           style={{
-            // Visible but styled — iOS requires the input to be directly interactable
             width: '100%',
             padding: '10px 12px',
             border: '1.5px dashed var(--border2)',

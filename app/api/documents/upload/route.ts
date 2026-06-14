@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
       drive, fileName, propFolderId, buffer, file.type || 'application/octet-stream'
     );
 
-    const docs = await readJsonFile<Document[]>(drive, 'documents.json', dataFolderId) || [];
+    const docs = await readJsonFile<Document[]>(drive, 'documents.json', dataFolderId, session.accessToken) || [];
     const newDoc: Document = {
       id: uuid(),
       driveFileId,
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
       ...metadata,
     };
     docs.push(newDoc);
-    await writeJsonFile(drive, 'documents.json', dataFolderId, docs);
+    await writeJsonFile(drive, 'documents.json', dataFolderId, docs, session.accessToken);
     return NextResponse.json({ data: newDoc });
   } catch (e: any) {
     console.error('POST /api/documents/upload error:', e.message);

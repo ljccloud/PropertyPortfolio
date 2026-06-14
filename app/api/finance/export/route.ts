@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
 
     const drive = getDriveClient(session.accessToken);
     const folderId = await getDataFolderId(drive, session.accessToken);
-    const transactions = await readJsonFile<Transaction[]>(drive, 'transactions.json', folderId) || [];
+    const transactions = await readJsonFile<Transaction[]>(drive, 'transactions.json', folderId, session.accessToken) || [];
     const period = resolvePeriod(filter, custom);
     const csv = exportToCsv(transactions, period);
 

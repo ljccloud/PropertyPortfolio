@@ -215,6 +215,9 @@ export default function AppShell() {
     return end;
   }
 
+  // Each transaction is apportioned against the property's effective end
+  // (capped at archivedDate for archived properties) to avoid overstating
+  // income/expenses for periods beyond when the property was sold/archived.
   const filteredTxns = transactions.filter(tx => {
     if (filterPropId && tx.propertyId !== filterPropId) return false;
     const prop = properties.find(p => p.id === tx.propertyId);
@@ -223,8 +226,14 @@ export default function AppShell() {
     const effectiveEnd = propEnd < end ? propEnd : end;
     return txInRange(tx, start, effectiveEnd);
   });
-  const totalIncome = filteredTxns.filter(t => t.type === 'income').reduce((s, t) => s + apportionAmount(t, start, end), 0);
-  const totalExpense = filteredTxns.filter(t => t.type === 'expense').reduce((s, t) => s + apportionAmount(t, start, end), 0);
+  function getEffectiveEnd(tx: Transaction): Date {
+    const prop = properties.find(p => p.id === tx.propertyId);
+    if (!prop) return end;
+    const propEnd = getPropertyEnd(prop);
+    return propEnd < end ? propEnd : end;
+  }
+  const totalIncome = filteredTxns.filter(t => t.type === 'income').reduce((s, t) => s + apportionAmount(t, start, getEffectiveEnd(t)), 0);
+  const totalExpense = filteredTxns.filter(t => t.type === 'expense').reduce((s, t) => s + apportionAmount(t, start, getEffectiveEnd(t)), 0);
   const totalNet = totalIncome - totalExpense;
   const detailProp = properties.find(p => p.id === detailPropId);
 
@@ -452,7 +461,7 @@ export default function AppShell() {
     const displayExpense = filterOwnerId ? ownerExpense : totalExpense;
     const displayNet     = filterOwnerId ? ownerNet     : totalNet;
 
-    // Net % = (income - agent fees) / income  — income less managing agent fees only
+    // Net Income = income minus agent fees only; Profit = income minus all expenses
     const agentFees = fps.reduce((s, p) => {
       const propEnd = getPropertyEnd(p);
       const effEnd = propEnd < end ? propEnd : end;
@@ -461,6 +470,8 @@ export default function AppShell() {
       return s + ptxns.filter(t => t.type === 'expense' && t.category === 'Managing Agent fees')
         .reduce((ss, t) => ss + apportionAmount(t, start, effEnd) * pct / 100, 0);
     }, 0);
+    const displayNetIncome = displayIncome - agentFees;
+    const displayProfit    = displayNet; // income minus all expenses
     const netPct = displayIncome > 0 ? (((displayIncome - agentFees) / displayIncome) * 100).toFixed(1) : '—';
     const profitPct = displayIncome > 0 ? ((displayNet / displayIncome) * 100).toFixed(1) : '—';
     const yieldProps = fps.filter(p => (p.currentValue || totalInvested(p) > 0) && p.tenant && getOwnershipPct(p) > 0);
@@ -486,10 +497,11 @@ export default function AppShell() {
             Showing {allOwners.find(o => o.id === filterOwnerId)?.name}'s share
           </div>
         )}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
           <Metric label="Income" value={fmt(displayIncome)} color="var(--green)" sub={label} />
           <Metric label="Expenses" value={fmt(displayExpense)} color="var(--red)" />
-          <Metric label="Net" value={fmt(displayNet)} color={displayNet >= 0 ? 'var(--green)' : 'var(--red)'} />
+          <Metric label="Net Income" value={fmt(displayNetIncome)} color={displayNetIncome >= 0 ? 'var(--green)' : 'var(--red)'} />
+          <Metric label="Profit" value={fmt(displayProfit)} color={displayProfit >= 0 ? 'var(--green)' : 'var(--red)'} />
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8, marginBottom: 16 }}>
           <Metric label="Rent PCM" value={fmt(totalRentPcm)} sub={`${fps.filter(p => p.tenant && getOwnershipPct(p) > 0).length} let`} />
@@ -555,8 +567,8 @@ export default function AppShell() {
                   }
                   <span style={{ fontSize: 18, color: 'var(--text3)' }}>›</span>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, padding: '10px 0', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', marginBottom: 10 }}>
-                  {[{ l: 'Income', v: pInc, c: 'var(--green)' }, { l: 'Expenses', v: pExp, c: 'var(--red)' }, { l: 'Net', v: pNet, c: pNet >= 0 ? 'var(--green)' : 'var(--red)' }].map(({ l, v, c }) => (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8, padding: '10px 0', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', marginBottom: 10 }}>
+                  {[{ l: 'Income', v: pInc, c: 'var(--green)' }, { l: 'Expenses', v: pExp, c: 'var(--red)' }, { l: 'Net Income', v: pInc - ptxns.filter(t => t.type === 'expense' && t.category === 'Managing Agent fees').reduce((s, t) => s + apportionAmount(t, start, effectiveEnd) * pct / 100, 0), c: (pInc - ptxns.filter(t => t.type === 'expense' && t.category === 'Managing Agent fees').reduce((s, t) => s + apportionAmount(t, start, effectiveEnd) * pct / 100, 0)) >= 0 ? 'var(--green)' : 'var(--red)' }, { l: 'Profit', v: pNet, c: pNet >= 0 ? 'var(--green)' : 'var(--red)' }].map(({ l, v, c }) => (
                     <div key={l}>
                       <div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 3 }}>{l}</div>
                       <div style={{ fontSize: 14, fontWeight: 500, color: c }}>{fmt(v)}</div>
@@ -586,8 +598,9 @@ export default function AppShell() {
           const propEnd = getPropertyEnd(p);
           const effectiveEnd = propEnd < end ? propEnd : end;
           const ptxns = transactions.filter(t => t.propertyId === p.id && txInRange(t, start, effectiveEnd));
-          const pInc = ptxns.filter(t => t.type === 'income').reduce((s, t) => s + apportionAmount(t, start, effectiveEnd), 0);
-          const pExp = ptxns.filter(t => t.type === 'expense').reduce((s, t) => s + apportionAmount(t, start, effectiveEnd), 0);
+          const ownerPct = getOwnershipPct(p);
+          const pInc = ptxns.filter(t => t.type === 'income').reduce((s, t) => s + apportionAmount(t, start, effectiveEnd) * ownerPct / 100, 0);
+          const pExp = ptxns.filter(t => t.type === 'expense').reduce((s, t) => s + apportionAmount(t, start, effectiveEnd) * ownerPct / 100, 0);
           const basis = p.currentValue || totalInvested(p); const yld = basis > 0 && p.tenant ? ((p.tenant.rentPcm * 12 / basis) * 100).toFixed(1) : '—';
           return (
             <div key={p.id} style={{ ...card, cursor: 'pointer', opacity: p.archived ? 0.7 : 1 }} onClick={() => { setDetailPropId(p.id); setDetailTab('tenant'); }}>
@@ -602,8 +615,8 @@ export default function AppShell() {
                 }
                 <span style={{ fontSize: 18, color: 'var(--text3)' }}>›</span>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 6, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
-                {[{ l: 'Rent PCM', v: fmt(p.tenant?.rentPcm || 0), c: '' }, { l: 'Yield', v: yld === '—' ? '—' : `${yld}%`, c: '' }, { l: 'Income', v: fmt(pInc), c: 'var(--green)' }, { l: 'Net', v: fmt(pInc - pExp), c: pInc - pExp >= 0 ? 'var(--green)' : 'var(--red)' }].map(({ l, v, c }) => (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr', gap: 6, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+                {(() => { const pAgentFees = ptxns.filter(t => t.type === 'expense' && t.category === 'Managing Agent fees').reduce((s, t) => s + apportionAmount(t, start, effectiveEnd) * ownerPct / 100, 0); const pNetIncome = pInc - pAgentFees; const pProfit = pInc - pExp; return [{ l: 'Rent PCM', v: fmt(p.tenant?.rentPcm || 0), c: '' }, { l: 'Yield', v: yld === '—' ? '—' : `${yld}%`, c: '' }, { l: 'Income', v: fmt(pInc), c: 'var(--green)' }, { l: 'Net Income', v: fmt(pNetIncome), c: pNetIncome >= 0 ? 'var(--green)' : 'var(--red)' }, { l: 'Profit', v: fmt(pProfit), c: pProfit >= 0 ? 'var(--green)' : 'var(--red)' }]; })().map(({ l, v, c }) => (
                   <div key={l}>
                     <div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 3 }}>{l}</div>
                     <div style={{ fontSize: 13, fontWeight: 500, color: c || 'var(--text)' }}>{v}</div>
@@ -892,13 +905,18 @@ export default function AppShell() {
   // ─── Finance ──────────────────────────────────────────────────────────────────
   function Finance() {
     const shown = filteredTxns.filter(t => finTab === 'all' || t.type === finTab).sort((a, b) => b.dateStart.localeCompare(a.dateStart));
+    const totalAgentFees = filteredTxns
+      .filter(t => t.type === 'expense' && t.category === 'Managing Agent fees')
+      .reduce((s, t) => s + apportionAmount(t, start, getEffectiveEnd(t)), 0);
+    const totalNetIncome = totalIncome - totalAgentFees;
     return (
       <div style={{ padding: 16 }}>
         <PeriodBar />
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
-          <Metric label="Income"   value={fmt(totalIncome)}  color="var(--green)" sub={`${filteredTxns.filter(t => t.type === 'income').length} entries`} />
-          <Metric label="Expenses" value={fmt(totalExpense)} color="var(--red)" />
-          <Metric label="Net"      value={fmt(totalNet)}     color={totalNet >= 0 ? 'var(--green)' : 'var(--red)'} sub={label} />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
+          <Metric label="Income"     value={fmt(totalIncome)}    color="var(--green)" sub={`${filteredTxns.filter(t => t.type === 'income').length} entries`} />
+          <Metric label="Expenses"   value={fmt(totalExpense)}   color="var(--red)" />
+          <Metric label="Net Income" value={fmt(totalNetIncome)} color={totalNetIncome >= 0 ? 'var(--green)' : 'var(--red)'} sub={label} />
+          <Metric label="Profit"     value={fmt(totalNet)}       color={totalNet >= 0 ? 'var(--green)' : 'var(--red)'} />
         </div>
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
           <button onClick={() => setModal({ type: 'addTransaction' })} style={{ ...btnFullSec, flex: 1, marginTop: 0 }}>+ Add transaction</button>
@@ -911,7 +929,7 @@ export default function AppShell() {
           {shown.length === 0
             ? <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text2)', fontSize: 14 }}>No transactions for this period</div>
             : shown.map(t => {
-              const prorated = apportionAmount(t, start, end);
+              const prorated = apportionAmount(t, start, getEffectiveEnd(t));
               const isProrated = Math.abs(prorated - t.amount) > 0.5;
               return (
                 <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 0', borderBottom: '1px solid var(--border)' }}>
