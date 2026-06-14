@@ -734,7 +734,8 @@ export default function AppShell() {
                   )}
                   <IR label="Total Invested" value={totalInvested(p) > 0 ? fmt(totalInvested(p)) : undefined} />
                   <IR label="Current Value" value={p.currentValue ? fmt(p.currentValue) : undefined} />
-                  <IR label="Gross Yield" value={p.tenant && (p.currentValue || totalInvested(p) > 0) ? `${((p.tenant.rentPcm * 12 / (p.currentValue || totalInvested(p))) * 100).toFixed(1)}%` : undefined} />
+                  <IR label="Gross Yield (Current Value)" value={p.tenant && p.currentValue ? `${((p.tenant.rentPcm * 12 / p.currentValue) * 100).toFixed(1)}%` : undefined} />
+                  <IR label="Gross Yield (Total Invested)" value={p.tenant && totalInvested(p) > 0 ? `${((p.tenant.rentPcm * 12 / totalInvested(p)) * 100).toFixed(1)}%` : undefined} />
                   {p.archived && p.archivedDate && <IR label="Archived" value={fmtDate(p.archivedDate)} />}
                   <div style={{ paddingTop: 12 }}>
                     <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Ownership</div>

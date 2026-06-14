@@ -1,27 +1,6 @@
 import { google } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
 
-// ─── Retry helper ─────────────────────────────────────────────────────────────
-// Vercel cold-start + brand-new Drive folders can cause transient 500/503 errors
-// on the first write. Retry up to 3 times with exponential back-off.
-async function withRetry<T>(fn: () => Promise<T>, retries = 3, delayMs = 400): Promise<T> {
-  let lastErr: any;
-  for (let i = 0; i < retries; i++) {
-    try {
-      return await fn();
-    } catch (err: any) {
-      lastErr = err;
-      const status = err?.response?.status ?? err?.code;
-      // Only retry on transient errors (5xx, rate limit 429, network errors)
-      const isTransient = !status || status === 429 || status >= 500;
-      if (!isTransient || i === retries - 1) throw err;
-      await new Promise(r => setTimeout(r, delayMs * Math.pow(2, i)));
-    }
-  }
-  throw lastErr;
-}
-
-
 const ROOT_FOLDER_NAME = 'PropertyPortfolio';
 const DATA_FOLDER_NAME = 'data';
 
@@ -71,14 +50,14 @@ async function createFolder(
   name: string,
   parentId?: string
 ): Promise<string> {
-  const res = await withRetry(() => drive.files.create({
+  const res = await drive.files.create({
     requestBody: {
       name,
       mimeType: 'application/vnd.google-apps.folder',
       parents: parentId ? [parentId] : undefined,
     },
     fields: 'id',
-  }));
+  });
   return res.data.id!;
 }
 
@@ -244,12 +223,12 @@ export async function writeJsonFile<T>(
   let fileId = await findFileId(drive, fileName, folderId, token);
 
   if (fileId) {
-    await withRetry(() => drive.files.update({ fileId: fileId!, media }));
+    await drive.files.update({ fileId, media });
   } else {
-    const res = await withRetry(() => drive.files.create({
+    const res = await drive.files.create({
       requestBody: { name: fileName, parents: [folderId], mimeType: 'application/json' },
       media,
-    }));
+    });
     fileId = res.data.id!;
     if (token) _fileIdCache.set(cacheKey, fileId);
   }
@@ -265,15 +244,15 @@ export async function uploadFile(
   mimeType: string
 ): Promise<{ id: string; viewLink: string }> {
   const { Readable } = require('stream');
-  const res = await withRetry(() => drive.files.create({
+  const res = await drive.files.create({
     requestBody: { name: fileName, parents: [folderId] },
     media: { mimeType, body: Readable.from(buffer) },
     fields: 'id, webViewLink',
-  }));
-  await withRetry(() => drive.permissions.create({
+  });
+  await drive.permissions.create({
     fileId: res.data.id!,
     requestBody: { role: 'reader', type: 'anyone' },
-  }));
+  });
   return {
     id: res.data.id!,
     viewLink: res.data.webViewLink || `https://drive.google.com/file/d/${res.data.id}/view`,
