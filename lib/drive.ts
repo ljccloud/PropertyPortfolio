@@ -223,10 +223,10 @@ export async function readJsonFile<T>(
   const fileId = await findFileId(drive, fileName, folderId, token);
   if (!fileId) return null;
 
-  const content = await drive.files.get(
-    { fileId, alt: 'media' },
+  const content = await withRetry(() => drive.files.get(
+    { fileId: fileId!, alt: 'media' },
     { responseType: 'text' }
-  );
+  ));
   return JSON.parse(content.data as string) as T;
 }
 

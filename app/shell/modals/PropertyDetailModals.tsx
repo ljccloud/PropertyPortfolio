@@ -311,15 +311,18 @@ export function ApplianceModal({ property, appliance, onSave, onClose }: Applian
     model: appliance?.model || '',
     serialNumber: appliance?.serialNumber || '',
     purchaseDate: appliance?.purchaseDate || '',
+    warrantyEndDate: appliance?.warrantyEndDate || '',
     supplier: appliance?.supplier || '',
     notes: appliance?.notes || '',
   });
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
   function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
 
   async function handleSave() {
     if (!form.name.trim()) return;
     setSaving(true);
+    setError('');
     try {
       const existing = (property as any).appliances || [];
       const updated = isEdit
@@ -327,7 +330,9 @@ export function ApplianceModal({ property, appliance, onSave, onClose }: Applian
         : [...existing, { id: uid(), ...form }];
       await onSave({ appliances: updated } as any);
       onClose();
-    } catch {} finally { setSaving(false); }
+    } catch (e: any) {
+      setError(e?.message || 'Save failed — please try again');
+    } finally { setSaving(false); }
   }
 
   return (
@@ -355,15 +360,20 @@ export function ApplianceModal({ property, appliance, onSave, onClose }: Applian
           <input style={inputStyle} type="date" value={form.purchaseDate}
             onChange={e => set('purchaseDate', e.target.value)} />
         </Field>
-        <Field label="Supplier">
-          <input style={inputStyle} type="text" value={form.supplier}
-            onChange={e => set('supplier', e.target.value)} />
+        <Field label="Warranty End">
+          <input style={inputStyle} type="date" value={form.warrantyEndDate}
+            onChange={e => set('warrantyEndDate', e.target.value)} />
         </Field>
       </Grid2>
+      <Field label="Supplier">
+        <input style={inputStyle} type="text" value={form.supplier}
+          onChange={e => set('supplier', e.target.value)} />
+      </Field>
       <Field label="Notes">
         <textarea style={{ ...inputStyle, resize: 'none' as const }} rows={2} value={form.notes}
           onChange={e => set('notes', e.target.value)} />
       </Field>
+      {error && <p style={{ color: 'var(--red)', fontSize: 13, marginBottom: 8 }}>{error}</p>}
       <button onClick={handleSave} disabled={saving || !form.name.trim()}
         style={{ ...btnPrimary, opacity: saving || !form.name.trim() ? 0.6 : 1 }}>
         {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Appliance'}

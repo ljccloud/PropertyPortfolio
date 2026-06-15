@@ -695,32 +695,40 @@ export default function AppShell() {
                   <IR label="Lease End" value={fmtDate(p.tenant?.leaseEnd)} />
                 </div>
                 <div style={card}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: p.lettingAgent?.name ? 10 : 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Letting Agent</div>
                     <button onClick={() => setModal({ type: 'editAgent', property: p })} style={btnSm}>Edit</button>
                   </div>
-                  <IR label="Name" value={p.lettingAgent?.name} />
-                  <IR label="Company" value={p.lettingAgent?.company} />
-                  <IR label="Contact" value={p.lettingAgent?.contact} />
-                  <IR label="Email" value={p.lettingAgent?.email} />
-                  <IR label="Phone" value={p.lettingAgent?.phone} />
+                  {p.lettingAgent?.name ? (
+                    <>
+                      <IR label="Name" value={p.lettingAgent?.name} />
+                      <IR label="Company" value={p.lettingAgent?.company} />
+                      <IR label="Contact" value={p.lettingAgent?.contact} />
+                      <IR label="Email" value={p.lettingAgent?.email} />
+                      <IR label="Phone" value={p.lettingAgent?.phone} />
+                    </>
+                  ) : (
+                  )}
                 </div>
-                {p.rentHistory.length > 0 && (
-                  <div style={card}>
-                    <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Rent History</div>
-                    {[...p.rentHistory].sort((a: any, b: any) => (b.dateFrom || '').localeCompare(a.dateFrom || '')).map((r: any) => (
-                      <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '80px 1fr auto', alignItems: 'baseline', padding: '5px 0', borderBottom: '1px solid var(--border)', gap: 8, fontSize: 13 }}>
-                        <span style={{ fontWeight: 500 }}>{fmt(r.amount)}</span>
-                        <span style={{ color: 'var(--text2)' }}>{fmtDate(r.dateFrom)} → {r.dateTo ? fmtDate(r.dateTo) : 'Present'}</span>
-                        {r.notes
-                          ? <span style={{ color: 'var(--text3)', fontSize: 12, textAlign: 'left' }}>{r.notes}</span>
-                          : <span />
-                        }
-                      </div>
-                    ))}
+                <div style={card}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: p.rentHistory.length > 0 ? 10 : 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Rent History</div>
+                    <button onClick={() => setModal({ type: 'addRentHistory', property: p })} style={btnSm}>+ Add</button>
                   </div>
-                )}
-                <button onClick={() => setModal({ type: 'addRentHistory', property: p })} style={btnFullSec}>+ Add rent record</button>
+                  {p.rentHistory.length > 0 ? (
+                    [...p.rentHistory].sort((a: any, b: any) => (b.dateFrom || '').localeCompare(a.dateFrom || '')).map((r: any) => (
+                      <div key={r.id} style={{ padding: '5px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 8, alignItems: 'baseline' }}>
+                          <span style={{ fontWeight: 500 }}>{fmt(r.amount)}</span>
+                          <span style={{ color: 'var(--text2)' }}>{fmtDate(r.dateFrom)} → {r.dateTo ? fmtDate(r.dateTo) : 'Present'}</span>
+                        </div>
+                        {r.notes && <div style={{ color: 'var(--text3)', fontSize: 12, marginTop: 2, textAlign: 'left' }}>{r.notes}</div>}
+                      </div>
+                    ))
+                  ) : (
+                    <div style={{ color: 'var(--text3)', fontSize: 13 }}>No rent history recorded</div>
+                  )}
+                </div>
               </>
             )}
 
