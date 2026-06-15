@@ -40,16 +40,17 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const drive = getDriveClient(session.accessToken);
     const folderId = await getDataFolderId(drive, session.accessToken);
-    const properties = await getProperties(session.accessToken);
+    const properties = await readJsonFile<Property[]>(drive, 'properties.json', folderId, session.accessToken) || [];
 
     const newProperty: Property = {
       id: uuid(),
       address: body.address,
+      shortName: body.shortName || undefined,
       reference: body.reference,
       purchasePrice: body.purchasePrice,
       purchaseDate: body.purchaseDate,
       currentValue: body.currentValue,
-      owners: body.owners || [],
+      owners: (body.owners || []).map((o: any) => ({ id: o.id, name: o.name, percentage: o.percentage })),
       tenant: body.tenant,
       lettingAgent: body.lettingAgent,
       rentHistory: body.rentHistory || [],

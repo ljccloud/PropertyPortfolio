@@ -3,8 +3,7 @@
 export interface Owner {
   id: string;
   name: string;
-  email: string;
-  percentage: number; // 0–100
+  percentage: number; // 0-100
 }
 
 export interface Tenant {

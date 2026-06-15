@@ -23,7 +23,7 @@ export default function PropertyModal({ property, onSave, onClose }: Props) {
     currentValue: property?.currentValue?.toString() || '',
     owners: property?.owners?.length
       ? property.owners
-      : [{ id: '1', name: '', email: '', percentage: 100 }],
+      : [{ id: '1', name: '', percentage: 100 }],
   });
   const [saving, setSaving] = useState(false);
 
@@ -34,7 +34,7 @@ export default function PropertyModal({ property, onSave, onClose }: Props) {
   }
 
   function addOwner() {
-    setForm(f => ({ ...f, owners: [...f.owners, { id: uid(), name: '', email: '', percentage: 0 }] }));
+    setForm(f => ({ ...f, owners: [...f.owners, { id: uid(), name: '', percentage: 0 }] }));
   }
 
   function removeOwner(i: number) {
@@ -50,7 +50,7 @@ export default function PropertyModal({ property, onSave, onClose }: Props) {
         ...form,
         purchasePrice: form.purchasePrice ? Number(form.purchasePrice) : undefined,
         currentValue: form.currentValue ? Number(form.currentValue) : undefined,
-        owners: form.owners.map(o => ({ ...o, percentage: Number(o.percentage) })),
+        owners: form.owners.map(o => ({ id: o.id, name: o.name, percentage: Number(o.percentage) })),
         rentHistory: property?.rentHistory || [],
         keyContacts: property?.keyContacts || [],
         renovations: (property as any)?.renovations || [],
@@ -114,10 +114,6 @@ export default function PropertyModal({ property, onSave, onClose }: Props) {
                   onChange={e => updateOwner(i, 'percentage', e.target.value)} />
               </Field>
             </Grid2>
-            <Field label="Email">
-              <input style={inputStyle} type="email" value={o.email}
-                onChange={e => updateOwner(i, 'email', e.target.value)} />
-            </Field>
             {form.owners.length > 1 && (
               <button onClick={() => removeOwner(i)} style={{ fontSize: 12, color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Remove</button>
             )}

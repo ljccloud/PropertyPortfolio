@@ -10,9 +10,9 @@ import DocumentModal from './modals/DocumentModal';
 import { TenantModal, AgentModal, RentHistoryModal, ContactModal, RenovationModal, ApplianceModal } from './modals/PropertyDetailModals';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-interface Owner { id: string; name: string; email: string; percentage: number; }
+interface Owner { id: string; name: string; percentage: number; }
 interface Tenant { id: string; name: string; email: string; phone: string; leaseStart: string; leaseEnd?: string; deposit: number; rentPcm: number; }
-interface Property { id: string; address: string; reference?: string; purchasePrice?: number; purchaseDate?: string; currentValue?: number; renovations?: any[]; appliances?: any[]; owners: Owner[]; tenant?: Tenant; lettingAgent?: any; rentHistory: any[]; keyContacts: any[]; archived?: boolean; archivedDate?: string; }
+interface Property { id: string; address: string; shortName?: string; reference?: string; purchasePrice?: number; purchaseDate?: string; currentValue?: number; renovations?: any[]; appliances?: any[]; owners: Owner[]; tenant?: Tenant; lettingAgent?: any; rentHistory: any[]; keyContacts: any[]; archived?: boolean; archivedDate?: string; }
 interface Transaction { id: string; propertyId: string; propertyAddress: string; type: 'income' | 'expense'; category: string; dateStart: string; dateEnd?: string; amount: number; description?: string; supplier?: string; }
 interface MaintenanceIssue { id: string; propertyId: string; propertyAddress: string; issue: string; dateRaised: string; dateResolved?: string; status: 'Open' | 'Closed'; description?: string; resolution?: string; costToResolve?: number; }
 interface Document { id: string; propertyId: string; propertyAddress: string; category: string; documentDate: string; description: string; driveViewLink: string; driveFileName: string; certificateType?: string; expiryDate?: string; issueDate?: string; epcRating?: string; applianceName?: string; applianceMake?: string; applianceModel?: string; applianceSerial?: string; }
@@ -342,8 +342,15 @@ export default function AppShell() {
   }
 
   async function deleteTxn(id: string) {
-    await fetch('/api/finance', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+    const prev = transactions;
     setTransactions(ts => ts.filter(t => t.id !== id));
+    try {
+      const res = await fetch('/api/finance', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch (e: any) {
+      setTransactions(prev);
+      showToast(`Delete failed: ${e.message}`, 'error');
+    }
   }
 
   async function saveMaint(data: any) {
@@ -372,8 +379,15 @@ export default function AppShell() {
   }
 
   async function deleteMaint(id: string) {
-    await fetch('/api/maintenance', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+    const prev = maintenance;
     setMaintenance(ms => ms.filter(m => m.id !== id));
+    try {
+      const res = await fetch('/api/maintenance', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch (e: any) {
+      setMaintenance(prev);
+      showToast(`Delete failed: ${e.message}`, 'error');
+    }
   }
 
   async function uploadDoc(formData: FormData) {
@@ -391,8 +405,15 @@ export default function AppShell() {
   }
 
   async function deleteDoc(id: string) {
-    await fetch('/api/documents', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+    const prev = documents;
     setDocuments(ds => ds.filter(d => d.id !== id));
+    try {
+      const res = await fetch('/api/documents', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch (e: any) {
+      setDocuments(prev);
+      showToast(`Delete failed: ${e.message}`, 'error');
+    }
   }
 
   // ─── Period bar ───────────────────────────────────────────────────────────────
@@ -436,7 +457,7 @@ export default function AppShell() {
   // ─── Dashboard ────────────────────────────────────────────────────────────────
   function Dashboard() {
     // Apply ownership % to rent PCM and yield — respects owner filter
-    const totalRentPcm = fps.filter(p => p.tenant).reduce((s, p) => {
+    const totalRentPcm = fps.filter(p => p.tenant && !p.archived).reduce((s, p) => {
       const pct = getOwnershipPct(p) / 100;
       return s + (p.tenant?.rentPcm || 0) * pct;
     }, 0);
@@ -828,10 +849,9 @@ export default function AppShell() {
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 14, fontWeight: 500 }}>{a.name}</div>
                         <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>{[a.make, a.model, a.serialNumber && `S/N: ${a.serialNumber}`].filter(Boolean).join(' · ')}</div>
-                        {a.supplier && <div style={{ fontSize: 12, color: 'var(--text2)' }}>Supplier: {a.supplier}</div>}
                         {(a.purchaseDate || a.supplier) && (
                           <div style={{ fontSize: 12, color: 'var(--text2)' }}>
-                            {a.purchaseDate ? `Purchased: ${fmtDate(a.purchaseDate)}` : ''}{a.purchaseDate && a.supplier ? ' · ' : ''}{a.supplier || ''}
+                            {a.purchaseDate ? `Purchased: ${fmtDate(a.purchaseDate)}` : ''}{a.purchaseDate && a.supplier ? ' · ' : ''}{a.supplier ? `Supplier: ${a.supplier}` : ''}
                           </div>
                         )}
                         {a.warrantyEndDate && <div style={{ fontSize: 12, color: 'var(--text2)' }}>Warranty ends: {fmtDate(a.warrantyEndDate)}</div>}
@@ -1047,7 +1067,7 @@ export default function AppShell() {
   // ─── Documents ────────────────────────────────────────────────────────────────
   function Documents() {
     const shownDocs = (filterPropId ? documents.filter(d => d.propertyId === filterPropId) : documents)
-      .sort((a, b) => b.documentDate.localeCompare(a.documentDate));
+      .sort((a, b) => (b.documentDate || '').localeCompare(a.documentDate || ''));
     const grouped: Record<string, Document[]> = {};
     shownDocs.forEach(d => { if (!grouped[d.propertyId]) grouped[d.propertyId] = []; grouped[d.propertyId].push(d); });
 

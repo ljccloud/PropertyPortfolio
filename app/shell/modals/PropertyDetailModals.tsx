@@ -44,7 +44,9 @@ export function TenantModal({ property, onSave, onClose }: TenantProps) {
         }
       });
       onClose();
-    } catch {} finally { setSaving(false); }
+    } catch (e: any) {
+      alert(e?.message || 'Save failed — please try again');
+    } finally { setSaving(false); }
   }
 
   return (
@@ -106,7 +108,7 @@ export function AgentModal({ property, onSave, onClose }: AgentProps) {
 
   async function handleSave() {
     setSaving(true);
-    try { await onSave({ lettingAgent: form }); onClose(); } catch {} finally { setSaving(false); }
+    try { await onSave({ lettingAgent: form }); onClose(); } catch (e: any) { alert(e?.message || 'Save failed'); } finally { setSaving(false); }
   }
 
   return (
@@ -289,7 +291,9 @@ export function RenovationModal({ property, onSave, onClose }: RenovationProps) 
         ]
       });
       onClose();
-    } catch {} finally { setSaving(false); }
+    } catch (e: any) {
+      alert(e?.message || 'Save failed — please try again');
+    } finally { setSaving(false); }
   }
 
   return (
