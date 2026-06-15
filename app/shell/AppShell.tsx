@@ -107,6 +107,7 @@ type ModalType =
   | { type: 'editAgent'; property: Property }
   | { type: 'addRentHistory'; property: Property }
   | { type: 'addContact'; property: Property }
+  | { type: 'editContact'; property: Property; contact: any }
   | { type: 'addRenovation'; property: Property }
   | { type: 'addAppliance'; property: Property }
   | { type: 'editAppliance'; property: Property; appliance: any }
@@ -278,7 +279,6 @@ export default function AppShell() {
   async function savePropertyPatch(propId: string, patch: Partial<Property>) {
     const prop = properties.find(p => p.id === propId);
     if (!prop) return;
-    // Ensure array fields always present to avoid API validation errors
     const safeBase = {
       ...prop,
       renovations: prop.renovations || [],
@@ -287,11 +287,8 @@ export default function AppShell() {
       keyContacts: prop.keyContacts || [],
       owners: prop.owners || [],
     };
-    try {
-      await saveProperty({ ...safeBase, ...patch });
-    } catch {
-      // error already shown via saveProperty's catch block
-    }
+    // Re-throw so calling modals can show their own error state and stay open
+    await saveProperty({ ...safeBase, ...patch });
   }
 
   async function archiveProperty(propId: string) {
@@ -723,12 +720,10 @@ export default function AppShell() {
                   </div>
                   {p.rentHistory.length > 0 ? (
                     [...p.rentHistory].sort((a: any, b: any) => (b.dateFrom || '').localeCompare(a.dateFrom || '')).map((r: any) => (
-                      <div key={r.id} style={{ padding: '5px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 8, alignItems: 'baseline' }}>
-                          <span style={{ fontWeight: 500 }}>{fmt(r.amount)}</span>
-                          <span style={{ color: 'var(--text2)' }}>{fmtDate(r.dateFrom)} → {r.dateTo ? fmtDate(r.dateTo) : 'Present'}</span>
-                        </div>
-                        {r.notes && <div style={{ color: 'var(--text3)', fontSize: 12, marginTop: 2, textAlign: 'left' }}>{r.notes}</div>}
+                      <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '80px 1fr auto', alignItems: 'baseline', gap: 8, padding: '5px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                        <span style={{ fontWeight: 500 }}>{fmt(r.amount)}</span>
+                        <span style={{ color: 'var(--text2)' }}>{fmtDate(r.dateFrom)} → {r.dateTo ? fmtDate(r.dateTo) : 'Present'}</span>
+                        <span style={{ color: 'var(--text3)', fontSize: 12, textAlign: 'right' }}>{r.notes || ''}</span>
                       </div>
                     ))
                   ) : (
@@ -834,7 +829,11 @@ export default function AppShell() {
                         <div style={{ fontSize: 14, fontWeight: 500 }}>{a.name}</div>
                         <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>{[a.make, a.model, a.serialNumber && `S/N: ${a.serialNumber}`].filter(Boolean).join(' · ')}</div>
                         {a.supplier && <div style={{ fontSize: 12, color: 'var(--text2)' }}>Supplier: {a.supplier}</div>}
-                        {a.purchaseDate && <div style={{ fontSize: 12, color: 'var(--text2)' }}>Purchased: {fmtDate(a.purchaseDate)}</div>}
+                        {(a.purchaseDate || a.supplier) && (
+                          <div style={{ fontSize: 12, color: 'var(--text2)' }}>
+                            {a.purchaseDate ? `Purchased: ${fmtDate(a.purchaseDate)}` : ''}{a.purchaseDate && a.supplier ? ' · ' : ''}{a.supplier || ''}
+                          </div>
+                        )}
                         {a.warrantyEndDate && <div style={{ fontSize: 12, color: 'var(--text2)' }}>Warranty ends: {fmtDate(a.warrantyEndDate)}</div>}
                         {a.notes && <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>{a.notes}</div>}
                       </div>
@@ -876,17 +875,28 @@ export default function AppShell() {
 
             {detailTab === 'contacts' && (
               <>
-                {p.keyContacts.length === 0 ? <div style={{ color: 'var(--text2)', fontSize: 14, padding: '12px 0' }}>No key contacts</div>
-                  : p.keyContacts.map((c: any) => (
-                    <div key={c.id} style={{ ...card }}>
-                      <div style={{ fontSize: 14, fontWeight: 500 }}>{c.name}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>{c.category}{c.company ? ` · ${c.company}` : ''}</div>
-                      {c.email && <div style={{ fontSize: 12, color: 'var(--blue)', marginTop: 2 }}>{c.email}</div>}
-                      {c.phone && <div style={{ fontSize: 12, color: 'var(--blue)' }}>{c.phone}</div>}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Key Contacts</div>
+                  <button onClick={() => setModal({ type: 'addContact', property: p })} style={btnSm}>+ Add</button>
+                </div>
+                {(p.keyContacts || []).length === 0
+                  ? <div style={{ color: 'var(--text2)', fontSize: 13, padding: '8px 0' }}>No key contacts recorded</div>
+                  : (p.keyContacts || []).map((c: any) => (
+                    <div key={c.id} style={{ ...card, display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 500 }}>{c.name}{c.category ? <span style={{ fontWeight: 400, color: 'var(--text2)', marginLeft: 6 }}>· {c.category}</span> : ''}</div>
+                        {c.company && <div style={{ fontSize: 12, color: 'var(--text2)' }}>{c.company}</div>}
+                        {c.email && <div style={{ fontSize: 12, color: 'var(--blue)' }}>{c.email}</div>}
+                        {c.phone && <div style={{ fontSize: 12, color: 'var(--blue)' }}>{c.phone}</div>}
+                        {c.notes && <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>{c.notes}</div>}
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                        <button onClick={() => setModal({ type: 'editContact', property: p, contact: c })} style={btnSm}>Edit</button>
+                        <button onClick={() => { if (confirm('Delete this contact?')) savePropertyPatch(p.id, { keyContacts: p.keyContacts.filter((x: any) => x.id !== c.id) }); }} style={{ ...btnSm, color: 'var(--red)' }}>✕</button>
+                      </div>
                     </div>
                   ))
                 }
-                <button onClick={() => setModal({ type: 'addContact', property: p })} style={btnFullSec}>+ Add contact</button>
               </>
             )}
 
@@ -909,18 +919,36 @@ export default function AppShell() {
 
             {detailTab === 'documents' && (
               <>
-                {propDocs.map(d => (
-                  <div key={d.id} style={{ ...card, display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}
-                    onClick={() => window.open(d.driveViewLink, '_blank', 'noopener,noreferrer')}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.description}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>{d.category}{d.category === 'Certificates' && d.certificateType ? ` · ${d.certificateType}` : ''}{d.category === 'Certificates' && d.epcRating ? ` · Band ${d.epcRating}` : ''} · {fmtDate(d.documentDate)}</div>
-                      {d.expiryDate && <div style={{ fontSize: 12, color: 'var(--amber)', marginTop: 2 }}>Expires {fmtDate(d.expiryDate)}</div>}
-                    </div>
-                    <button onClick={e => { e.stopPropagation(); if (confirm('Delete this document?')) deleteDoc(d.id); }} style={iconBtn}>✕</button>
-                  </div>
-                ))}
-                {propDocs.length === 0 && <div style={{ color: 'var(--text2)', fontSize: 14, padding: '12px 0' }}>No documents</div>}
+                {propDocs.length === 0
+                  ? <div style={{ color: 'var(--text2)', fontSize: 13, padding: '8px 0' }}>No documents uploaded</div>
+                  : (() => {
+                      const cats = ['Certificates', 'Tenancy', 'Rent', 'Appliances', 'Reference', 'Other'];
+                      const grouped: Record<string, Document[]> = {};
+                      propDocs.forEach(d => {
+                        const cat = d.category || 'Other';
+                        if (!grouped[cat]) grouped[cat] = [];
+                        grouped[cat].push(d);
+                      });
+                      return cats.filter(cat => grouped[cat]?.length > 0).map(cat => (
+                        <div key={cat} style={{ marginBottom: 12 }}>
+                          <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>{cat}</div>
+                          {grouped[cat].sort((a, b) => (b.documentDate || '').localeCompare(a.documentDate || '')).map(d => (
+                            <div key={d.id} style={{ ...card, display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginBottom: 6 }}
+                              onClick={() => window.open(d.driveViewLink, '_blank', 'noopener,noreferrer')}>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.description}</div>
+                                <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 1 }}>
+                                  {d.category === 'Certificates' && d.certificateType ? `${d.certificateType} · ` : ''}{fmtDate(d.documentDate)}
+                                </div>
+                                {d.expiryDate && <div style={{ fontSize: 12, color: daysUntil(d.expiryDate) !== null && daysUntil(d.expiryDate)! < 0 ? 'var(--red)' : 'var(--amber)', marginTop: 1 }}>Expires {fmtDate(d.expiryDate)}</div>}
+                              </div>
+                              <button onClick={e => { e.stopPropagation(); if (confirm('Delete this document?')) deleteDoc(d.id); }} style={iconBtn}>✕</button>
+                            </div>
+                          ))}
+                        </div>
+                      ));
+                    })()
+                }
                 <button onClick={() => { setDetailPropId(null); setScreen('documents'); setModal({ type: 'uploadDocument' }); }} style={btnFullSec}>+ Upload document</button>
               </>
             )}
@@ -1123,6 +1151,7 @@ export default function AppShell() {
       {modal?.type === 'editAgent' && <AgentModal property={modal.property} onSave={patch => savePropertyPatch(modal.property.id, patch)} onClose={() => setModal(null)} />}
       {modal?.type === 'addRentHistory' && <RentHistoryModal property={modal.property} onSave={patch => savePropertyPatch(modal.property.id, patch)} onClose={() => setModal(null)} />}
       {modal?.type === 'addContact' && <ContactModal property={modal.property} onSave={patch => savePropertyPatch(modal.property.id, patch)} onClose={() => setModal(null)} />}
+      {modal?.type === 'editContact' && <ContactModal property={modal.property} contact={modal.contact} onSave={patch => savePropertyPatch(modal.property.id, patch)} onClose={() => setModal(null)} />}
       {modal?.type === 'addRenovation' && <RenovationModal property={modal.property} onSave={patch => savePropertyPatch(modal.property.id, patch)} onClose={() => setModal(null)} />}
       {modal?.type === 'addAppliance' && <ApplianceModal property={modal.property} onSave={patch => savePropertyPatch(modal.property.id, patch)} onClose={() => setModal(null)} />}
       {modal?.type === 'editAppliance' && <ApplianceModal property={modal.property} appliance={modal.appliance} onSave={patch => savePropertyPatch(modal.property.id, patch)} onClose={() => setModal(null)} />}

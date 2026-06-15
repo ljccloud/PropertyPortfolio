@@ -147,20 +147,25 @@ interface RentHistoryProps {
 export function RentHistoryModal({ property, onSave, onClose }: RentHistoryProps) {
   const [form, setForm] = useState({ dateFrom: '', dateTo: '', amount: '', notes: '' });
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
   function set(key: string, v: any) { setForm(f => ({ ...f, [key]: v })); }
 
   async function handleSave() {
     if (!form.amount || !form.dateFrom) return;
     setSaving(true);
+    setError('');
     try {
+      const existing = property.rentHistory || [];
       await onSave({
         rentHistory: [
-          ...property.rentHistory,
+          ...existing,
           { id: uid(), dateFrom: form.dateFrom, dateTo: form.dateTo || undefined, amount: Number(form.amount), notes: form.notes || undefined },
         ]
       });
       onClose();
-    } catch {} finally { setSaving(false); }
+    } catch (e: any) {
+      setError(e?.message || 'Save failed — please try again');
+    } finally { setSaving(false); }
   }
 
   return (
@@ -172,13 +177,14 @@ export function RentHistoryModal({ property, onSave, onClose }: RentHistoryProps
         <Field label="Date From">
           <input style={inputStyle} type="date" value={form.dateFrom} onChange={e => set('dateFrom', e.target.value)} />
         </Field>
-        <Field label="Date To (leave blank if current)">
+        <Field label="Date To (leave blank if current rent)">
           <input style={inputStyle} type="date" value={form.dateTo} onChange={e => set('dateTo', e.target.value)} />
         </Field>
       </Grid2>
       <Field label="Notes">
         <input style={inputStyle} type="text" value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="e.g. Annual increase" />
       </Field>
+      {error && <p style={{ color: 'var(--red)', fontSize: 13, marginBottom: 8 }}>{error}</p>}
       <button onClick={handleSave} disabled={saving || !form.amount || !form.dateFrom}
         style={{ ...btnPrimary, opacity: saving || !form.amount || !form.dateFrom ? 0.6 : 1 }}>
         {saving ? 'Saving…' : 'Add Record'}
@@ -191,28 +197,43 @@ export function RentHistoryModal({ property, onSave, onClose }: RentHistoryProps
 
 interface ContactProps {
   property: Property;
+  contact?: any;
   onSave: (data: Partial<Property>) => Promise<void>;
   onClose: () => void;
 }
 
-export function ContactModal({ property, onSave, onClose }: ContactProps) {
-  const [form, setForm] = useState({ category: '', name: '', company: '', email: '', phone: '', notes: '' });
+export function ContactModal({ property, contact, onSave, onClose }: ContactProps) {
+  const isEdit = !!contact;
+  const [form, setForm] = useState({
+    category: contact?.category || '',
+    name: contact?.name || '',
+    company: contact?.company || '',
+    email: contact?.email || '',
+    phone: contact?.phone || '',
+    notes: contact?.notes || '',
+  });
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
   function set(key: string, v: any) { setForm(f => ({ ...f, [key]: v })); }
 
   async function handleSave() {
     if (!form.name.trim()) return;
     setSaving(true);
+    setError('');
     try {
-      await onSave({
-        keyContacts: [...property.keyContacts, { id: uid(), ...form }]
-      });
+      const existing = property.keyContacts || [];
+      const updated = isEdit
+        ? existing.map((c: any) => c.id === contact.id ? { ...c, ...form } : c)
+        : [...existing, { id: uid(), ...form }];
+      await onSave({ keyContacts: updated });
       onClose();
-    } catch {} finally { setSaving(false); }
+    } catch (e: any) {
+      setError(e?.message || 'Save failed — please try again');
+    } finally { setSaving(false); }
   }
 
   return (
-    <ModalShell title="Add Key Contact" onClose={onClose}>
+    <ModalShell title={isEdit ? 'Edit Contact' : 'Add Key Contact'} onClose={onClose}>
       <Field label="Category">
         <input style={inputStyle} type="text" value={form.category}
           onChange={e => set('category', e.target.value)} placeholder="Insurance, Solicitor, Plumber…" />
@@ -235,9 +256,10 @@ export function ContactModal({ property, onSave, onClose }: ContactProps) {
         <textarea style={{ ...inputStyle, resize: 'none' }} rows={2} value={form.notes}
           onChange={e => set('notes', e.target.value)} />
       </Field>
+      {error && <p style={{ color: 'var(--red)', fontSize: 13, marginBottom: 8 }}>{error}</p>}
       <button onClick={handleSave} disabled={saving || !form.name.trim()}
         style={{ ...btnPrimary, opacity: saving || !form.name.trim() ? 0.6 : 1 }}>
-        {saving ? 'Saving…' : 'Add Contact'}
+        {saving ? 'Saving…' : isEdit ? 'Save Contact' : 'Add Contact'}
       </button>
     </ModalShell>
   );

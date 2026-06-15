@@ -16,6 +16,7 @@ export default function PropertyModal({ property, onSave, onClose }: Props) {
   const isEdit = !!property;
   const [form, setForm] = useState({
     address: property?.address || '',
+    shortName: property?.shortName || '',
     reference: property?.reference || '',
     purchasePrice: property?.purchasePrice?.toString() || '',
     purchaseDate: property?.purchaseDate || '',
@@ -70,6 +71,11 @@ export default function PropertyModal({ property, onSave, onClose }: Props) {
       <Field label="Address">
         <input style={inputStyle} type="text" value={form.address}
           onChange={e => set('address', e.target.value)} placeholder="14 High Street, London" />
+      </Field>
+      <Field label="Short Name (used for file naming e.g. 'Queens', 'FlatB')">
+        <input style={inputStyle} type="text" value={form.shortName}
+          onChange={e => set('shortName', e.target.value.replace(/\s+/g, ''))}
+          placeholder="e.g. Queens, FlatB, HighSt" />
       </Field>
       <Field label="Reference (optional)">
         <input style={inputStyle} type="text" value={form.reference}

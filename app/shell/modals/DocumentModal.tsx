@@ -63,6 +63,8 @@ export default function DocumentModal({ properties, defaultPropertyId, onUpload,
   function setExpiryPreset(years: number) {
     if (!form.issueDate) return;
     const d = addYears(new Date(form.issueDate + 'T00:00:00'), years);
+    // Cert expiry is the day before the anniversary (e.g. issued 10 Jan 2024 → expires 9 Jan 2025)
+    d.setDate(d.getDate() - 1);
     set('expiryDate', format(d, 'yyyy-MM-dd'));
   }
 
@@ -73,7 +75,11 @@ export default function DocumentModal({ properties, defaultPropertyId, onUpload,
       const prop = properties.find(p => p.id === form.propertyId);
       const fd = new FormData();
       fd.append('file', file);
-      fd.append('metadata', JSON.stringify({ ...form, propertyAddress: prop?.address || '' }));
+      fd.append('metadata', JSON.stringify({
+        ...form,
+        propertyAddress: prop?.address || '',
+        shortName: (prop as any)?.shortName || '',
+      }));
       await onUpload(fd);
       onClose();
     } catch { /* error shown via toast */ } finally { setUploading(false); }

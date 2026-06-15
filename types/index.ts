@@ -68,6 +68,7 @@ export interface Appliance {
 export interface Property {
   id: string;
   address: string;
+  shortName?: string;
   reference?: string;
   purchasePrice?: number;
   purchaseDate?: string;

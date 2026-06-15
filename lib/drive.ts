@@ -1,7 +1,8 @@
 import { google } from 'googleapis';
+import { format } from 'date-fns';
 import { OAuth2Client } from 'google-auth-library';
 
-// ─── Retry helper ─────────────────────────────────────────────────────────────
+// --- Retry helper -------------------------------------------------------------
 // Vercel cold-start + brand-new Drive folders can cause transient 500/503 errors
 // on the first write. Retry up to 3 times with exponential back-off.
 async function withRetry<T>(fn: () => Promise<T>, retries = 3, delayMs = 400): Promise<T> {
@@ -25,7 +26,7 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delayMs = 400): P
 const ROOT_FOLDER_NAME = 'PropertyPortfolio';
 const DATA_FOLDER_NAME = 'data';
 
-// Module-level folder ID cache — survives across warm function invocations
+// Module-level folder ID cache - survives across warm function invocations
 const _folderCache = new Map<string, string>();
 const _fileIdCache = new Map<string, string>();
 
@@ -42,7 +43,7 @@ export function getDriveClient(accessToken: string) {
   return google.drive({ version: 'v3', auth });
 }
 
-// ─── Single-call folder resolution ───────────────────────────────────────────
+// --- Single-call folder resolution -------------------------------------------
 // Instead of: find root (1 call) + find data inside root (1 call) = 2 calls
 // We do: find data folder that has 'data' in name anywhere in drive (1 call)
 // then verify it's inside PropertyPortfolio
@@ -82,7 +83,7 @@ async function createFolder(
   return res.data.id!;
 }
 
-// Cleanup duplicate folders — keep first, trash the rest
+// Cleanup duplicate folders - keep first, trash the rest
 async function cleanupDuplicates(
   drive: ReturnType<typeof google.drive>,
   folders: Array<{ id: string }>
@@ -149,10 +150,16 @@ export async function getRootFolderId(
 export async function getPropertyFolderId(
   drive: ReturnType<typeof google.drive>,
   propertyAddress: string,
-  token?: string
+  token?: string,
+  shortName?: string
 ): Promise<string> {
-  const words = propertyAddress.replace(/[^a-zA-Z0-9 ]/g, '').trim().split(/\s+/);
-  const folderName = words.find(w => isNaN(Number(w))) || words[0] || 'Property';
+  // Use shortName if provided, otherwise derive from address
+  const folderName = shortName
+    ? shortName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 40)
+    : (() => {
+        const words = propertyAddress.replace(/[^a-zA-Z0-9 ]/g, '').trim().split(/\s+/);
+        return (words.find(w => isNaN(Number(w))) || words[0] || 'Property').slice(0, 40);
+      })();
   const cacheKey = token ? ck(token, `prop:${folderName}`) : `prop:${folderName}`;
   const cached = _folderCache.get(cacheKey);
   if (cached) return cached;
@@ -173,25 +180,38 @@ export async function getPropertyFolderId(
   return id;
 }
 
-// ─── File naming ──────────────────────────────────────────────────────────────
+// --- File naming --------------------------------------------------------------
 
 export function buildFileName(
   propertyAddress: string,
   category: string,
   description: string,
   documentDate: string,
-  ext: string
+  ext: string,
+  shortName?: string
 ): string {
-  const words = propertyAddress.replace(/[^a-zA-Z0-9 ]/g, '').split(/\s+/);
-  const first = words.find(w => isNaN(Number(w))) || words[0] || 'Property';
+  // Use explicit shortName if provided, otherwise derive from address
+  const propPart = shortName
+    ? shortName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 20)
+    : (() => {
+        const addrWords = propertyAddress.replace(/[^a-zA-Z0-9 ]/g, '').trim().split(/\s+/);
+        return (addrWords.find(w => isNaN(Number(w))) || addrWords[0] || 'Property').slice(0, 20);
+      })();
+  // Date: YYMM
   const d = new Date(documentDate + 'T00:00:00');
-  const yymm = `${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, '0')}`;
-  const cat = category.replace(/\s+/g, '');
-  const desc = description.trim().split(/\s+/)[0].replace(/[^a-zA-Z0-9]/g, '');
-  return `${first}_${yymm}_${cat}_${desc}${ext}`;
+  const isValidDate = !isNaN(d.getTime());
+  const yymm = isValidDate
+    ? `${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, '0')}`
+    : format(new Date(), 'yyMM');
+  // Category and description: alphanumeric only
+  const cat = category.replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '');
+  const desc = description.trim().split(/\s+/)[0].replace(/[^a-zA-Z0-9]/g, '').slice(0, 20) || 'doc';
+  // Convention: ShortName_YYMM_Category_Description.ext
+  // e.g. Queens_2506_Certificates_GasSafety.pdf
+  return `${propPart}_${yymm}_${cat}_${desc}${ext}`;
 }
 
-// ─── JSON helpers — with file ID caching ─────────────────────────────────────
+// --- JSON helpers --- with file ID caching ---
 
 async function findFileId(
   drive: ReturnType<typeof google.drive>,
@@ -255,7 +275,7 @@ export async function writeJsonFile<T>(
   }
 }
 
-// ─── File upload ──────────────────────────────────────────────────────────────
+// --- File upload --------------------------------------------------------------
 
 export async function uploadFile(
   drive: ReturnType<typeof google.drive>,

@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     // Resolve data folder first to warm the root folder cache, then get property
     // folder. These must be sequential as getPropertyFolderId depends on the root.
     const dataFolderId = await getDataFolderId(drive, session.accessToken);
-    const propFolderId = await getPropertyFolderId(drive, metadata.propertyAddress, session.accessToken);
+    const propFolderId = await getPropertyFolderId(drive, metadata.propertyAddress, session.accessToken, metadata.shortName);
 
     const ext = '.' + (file.name.split('.').pop() || 'pdf');
     const fileName = buildFileName(
@@ -34,7 +34,8 @@ export async function POST(req: NextRequest) {
       metadata.category,
       metadata.description,
       metadata.documentDate,
-      ext
+      ext,
+      metadata.shortName
     );
 
     // Read docs.json and convert file buffer in parallel while we have the folder IDs
