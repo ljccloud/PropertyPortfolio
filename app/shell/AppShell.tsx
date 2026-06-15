@@ -47,7 +47,7 @@ function getPeriod(period: string, customFrom?: string, customTo?: string): { st
   const now = new Date();
   if (period === 'ytd')      { const endToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999); return { start: new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0), end: endToday, label: `YTD ${now.getFullYear()}` }; }
   if (period === 'tytd')     { const endToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999); return { start: taxYearStart(now), end: endToday, label: 'Tax YTD' }; }
-  if (period === 'curtaxq')  { const qs = taxQStart(now); const qe = new Date(qs); qe.setMonth(qe.getMonth()+3); qe.setDate(qe.getDate()-1); qe.setHours(23,59,59,999); return { start: qs, end: qe, label: 'Tax Quarter' }; }
+  if (period === 'curtaxq')  { const qs = taxQStart(now); const qe = new Date(qs); qe.setMonth(qe.getMonth()+3); qe.setDate(qe.getDate()-1); qe.setHours(23,59,59,999); const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999); return { start: qs, end: qe < today ? qe : today, label: 'Tax Quarter' }; }
   if (period === 'alltime')  { const endToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999); return { start: new Date(2000, 0, 1), end: endToday, label: 'All time' }; }
   if (period === 'custom' && customFrom && customTo) return { start: new Date(customFrom + 'T00:00:00'), end: new Date(customTo + 'T23:59:59'), label: `${fmtDate(customFrom)} – ${fmtDate(customTo)}` };
   return { start: new Date(now.getFullYear(), 0, 1), end: now, label: `YTD ${now.getFullYear()}` };
@@ -204,7 +204,12 @@ export default function AppShell() {
     if (!filterOwnerId) {
       return property.owners.reduce((s, o) => s + o.percentage, 0) || 100;
     }
-    const ownerEntry = property.owners.find(o => o.id === filterOwnerId);
+    // Match by name (case-insensitive) since the same owner may have different IDs
+    // across properties (deduplication in allOwners uses the first ID seen)
+    const filterOwner = allOwners.find(o => o.id === filterOwnerId);
+    if (!filterOwner) return 0;
+    const filterName = filterOwner.name.trim().toLowerCase();
+    const ownerEntry = property.owners.find(o => o.name?.trim().toLowerCase() === filterName);
     return ownerEntry ? ownerEntry.percentage : 0;
   }
   // For archived properties, cap transactions at archivedDate
@@ -830,6 +835,7 @@ export default function AppShell() {
                         <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>{[a.make, a.model, a.serialNumber && `S/N: ${a.serialNumber}`].filter(Boolean).join(' · ')}</div>
                         {a.supplier && <div style={{ fontSize: 12, color: 'var(--text2)' }}>Supplier: {a.supplier}</div>}
                         {a.purchaseDate && <div style={{ fontSize: 12, color: 'var(--text2)' }}>Purchased: {fmtDate(a.purchaseDate)}</div>}
+                        {a.warrantyEndDate && <div style={{ fontSize: 12, color: 'var(--text2)' }}>Warranty ends: {fmtDate(a.warrantyEndDate)}</div>}
                         {a.notes && <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>{a.notes}</div>}
                       </div>
                       <div style={{ display: 'flex', gap: 6 }}>
@@ -908,7 +914,7 @@ export default function AppShell() {
                     onClick={() => window.open(d.driveViewLink, '_blank', 'noopener,noreferrer')}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 14, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.description}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>{d.category}{d.category === 'Certificates' && d.certificateType ? ` · ${d.certificateType}` : ''}{d.category === 'Certificates' && d.epcRating ? ` · Band ${d.epcRating}` : ''}{d.description ? ` · ${d.description}` : ''} · {fmtDate(d.documentDate)}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>{d.category}{d.category === 'Certificates' && d.certificateType ? ` · ${d.certificateType}` : ''}{d.category === 'Certificates' && d.epcRating ? ` · Band ${d.epcRating}` : ''} · {fmtDate(d.documentDate)}</div>
                       {d.expiryDate && <div style={{ fontSize: 12, color: 'var(--amber)', marginTop: 2 }}>Expires {fmtDate(d.expiryDate)}</div>}
                     </div>
                     <button onClick={e => { e.stopPropagation(); if (confirm('Delete this document?')) deleteDoc(d.id); }} style={iconBtn}>✕</button>
@@ -1030,7 +1036,7 @@ export default function AppShell() {
                   onClick={() => window.open(d.driveViewLink, '_blank', 'noopener,noreferrer')}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.description || d.driveFileName.replace(/_/g,' ').replace(/\.[^.]+$/,'')}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>{d.category}{d.category === 'Certificates' && d.certificateType ? ` · ${d.certificateType}` : ''}{d.category === 'Certificates' && d.epcRating ? ` · Band ${d.epcRating}` : ''}{d.description ? ` · ${d.description}` : ''} · {fmtDate(d.documentDate)}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>{d.category}{d.category === 'Certificates' && d.certificateType ? ` · ${d.certificateType}` : ''}{d.category === 'Certificates' && d.epcRating ? ` · Band ${d.epcRating}` : ''} · {fmtDate(d.documentDate)}</div>
                     {d.expiryDate && <div style={{ fontSize: 12, color: 'var(--amber)', marginTop: 2 }}>Expires {fmtDate(d.expiryDate)}</div>}
                   </div>
                   <button onClick={e => { e.stopPropagation(); if (confirm('Delete this document?')) deleteDoc(d.id); }} style={iconBtn}>✕</button>
