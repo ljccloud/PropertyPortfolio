@@ -708,6 +708,7 @@ export default function AppShell() {
                       <IR label="Phone" value={p.lettingAgent?.phone} />
                     </>
                   ) : (
+                    <div style={{ color: 'var(--text3)', fontSize: 13 }}>No letting agent recorded</div>
                   )}
                 </div>
                 <div style={card}>
