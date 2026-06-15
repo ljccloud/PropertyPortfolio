@@ -87,9 +87,9 @@ function txInRange(tx: Transaction, start: Date, end: Date) {
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
-const card: React.CSSProperties = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '14px 16px', marginBottom: 10 };
+const card: React.CSSProperties = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 14px', marginBottom: 8 };
 const sectionLabel: React.CSSProperties = { fontSize: 13, fontWeight: 500, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '20px 0 8px' };
-const infoRow: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '9px 0', borderBottom: '1px solid var(--border)', gap: 12 };
+const infoRow: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '5px 0', borderBottom: '1px solid var(--border)', gap: 12, fontSize: 13 };
 const pillBtn = (active: boolean): React.CSSProperties => ({ fontSize: 13, fontWeight: 500, padding: '7px 14px', border: '1px solid var(--border)', borderRadius: 20, background: active ? 'var(--text)' : 'transparent', color: active ? 'var(--bg)' : 'var(--text2)', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: 'inherit' });
 const btnSm: React.CSSProperties = { fontSize: 12, padding: '4px 10px', border: '1px solid var(--border)', borderRadius: 20, background: 'var(--surface2)', cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text2)' };
 const iconBtn: React.CSSProperties = { width: 32, height: 32, borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--surface2)', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontFamily: 'inherit' };
@@ -426,7 +426,7 @@ export default function AppShell() {
     return (
       <div style={infoRow}>
         <span style={{ fontSize: 13, color: 'var(--text2)', flexShrink: 0 }}>{label}</span>
-        <span style={{ fontSize: 14, textAlign: 'right' }}>{value || '—'}</span>
+        <span style={{ fontSize: 13, textAlign: 'right', fontWeight: 500 }}>{value || '—'}</span>
       </div>
     );
   }
@@ -709,7 +709,7 @@ export default function AppShell() {
                   <div style={card}>
                     <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Rent History</div>
                     {[...p.rentHistory].sort((a: any, b: any) => (b.dateFrom || '').localeCompare(a.dateFrom || '')).map((r: any) => (
-                      <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '80px 1fr auto', alignItems: 'baseline', padding: '8px 0', borderBottom: '1px solid var(--border)', gap: 8, fontSize: 13 }}>
+                      <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '80px 1fr auto', alignItems: 'baseline', padding: '5px 0', borderBottom: '1px solid var(--border)', gap: 8, fontSize: 13 }}>
                         <span style={{ fontWeight: 500 }}>{fmt(r.amount)}</span>
                         <span style={{ color: 'var(--text2)' }}>{fmtDate(r.dateFrom)} → {r.dateTo ? fmtDate(r.dateTo) : 'Present'}</span>
                         {r.notes
@@ -740,7 +740,7 @@ export default function AppShell() {
                   <div style={{ paddingTop: 12 }}>
                     <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Ownership</div>
                     {p.owners.map(o => (
-                      <div key={o.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                      <div key={o.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
                         <span>{o.name || 'Owner'}</span>
                         <span style={{ fontWeight: 500 }}>{o.percentage}%</span>
                       </div>
@@ -758,7 +758,7 @@ export default function AppShell() {
                   {(p.renovations || []).length === 0
                     ? <div style={{ fontSize: 13, color: 'var(--text3)' }}>No renovations recorded</div>
                     : [...(p.renovations || [])].sort((a: any, b: any) => b.date.localeCompare(a.date)).map((r: any) => (
-                      <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '80px 1fr auto auto', alignItems: 'baseline', gap: 8, padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                      <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '80px 1fr auto auto', alignItems: 'baseline', gap: 8, padding: '5px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
                         <span style={{ fontWeight: 500, color: 'var(--red)' }}>{fmt(r.cost)}</span>
                         <span>{r.description}</span>
                         <span style={{ color: 'var(--text3)', fontSize: 12 }}>{fmtDate(r.date)}</span>
