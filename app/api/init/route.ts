@@ -25,13 +25,17 @@ export async function GET() {
     // Get data folder ID ONCE — all subsequent reads reuse this ID
     const folderId = await getDataFolderId(drive, session.accessToken);
 
-    // Load all data files sequentially using the same folderId
-    const [properties, transactions, maintenance, documents] = await Promise.all([
-      readJsonFile<Property[]>(drive, 'properties.json', folderId, session.accessToken),
-      readJsonFile<Transaction[]>(drive, 'transactions.json', folderId, session.accessToken),
-      readJsonFile<MaintenanceIssue[]>(drive, 'maintenance.json', folderId, session.accessToken),
-      readJsonFile<Document[]>(drive, 'documents.json', folderId, session.accessToken),
-    ]);
+    // Load all data files sequentially using the same folderId.
+    // Previously these ran via Promise.all — four concurrent Drive API calls
+    // on a cold start increased the chance of hitting a transient rate-limit/
+    // connection error, and if any one of the four failed, the whole request
+    // failed even though retries existed for each individual call. Running
+    // them one after another is barely slower (each is a single small file)
+    // and removes that compounding risk.
+    const properties = await readJsonFile<Property[]>(drive, 'properties.json', folderId, session.accessToken);
+    const transactions = await readJsonFile<Transaction[]>(drive, 'transactions.json', folderId, session.accessToken);
+    const maintenance = await readJsonFile<MaintenanceIssue[]>(drive, 'maintenance.json', folderId, session.accessToken);
+    const documents = await readJsonFile<Document[]>(drive, 'documents.json', folderId, session.accessToken);
 
     return NextResponse.json({
       data: {
