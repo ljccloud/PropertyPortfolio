@@ -12,10 +12,18 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delayMs = 400): P
       return await fn();
     } catch (err: any) {
       lastErr = err;
-      const status = err?.response?.status ?? err?.status ?? err?.code;
-      const errCode = err?.code; // may be a network error string like 'ECONNRESET'
-      const isNetworkError = typeof errCode === 'string' && /ECONNRESET|ETIMEDOUT|ENOTFOUND|EAI_AGAIN/.test(errCode);
-      const isTransient = isNetworkError || !status || status === 429 || (typeof status === 'number' && status >= 500);
+      const cause = err?.cause ?? err;
+      const status = err?.response?.status ?? err?.status ?? err?.code ?? cause?.code;
+      const codeStr = typeof status === 'string' ? status : '';
+      const msg = `${err?.message || ''} ${cause?.message || ''}`;
+      const isNetworkError =
+        /ECONNRESET|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|ECONNREFUSED/.test(codeStr) ||
+        /fetch failed|load failed|network|socket hang up|other side closed/i.test(msg);
+      // No identifiable HTTP status at all (bare network/transport failure) is also transient —
+      // this is the case for raw fetch failures from Node's undici client, which often surface
+      // as generic "fetch failed" / "Load failed" errors with no status code on a cold start.
+      const hasNoStatus = typeof status !== 'number';
+      const isTransient = isNetworkError || hasNoStatus || status === 429 || status >= 500;
       if (!isTransient || i === retries - 1) throw err;
       await new Promise(r => setTimeout(r, delayMs * Math.pow(2, i)));
     }
