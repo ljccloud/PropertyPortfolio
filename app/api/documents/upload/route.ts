@@ -23,10 +23,13 @@ export async function POST(req: NextRequest) {
     if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 });
 
     const drive = getDriveClient(session.accessToken);
-    // Resolve data folder first to warm the root folder cache, then get property
-    // folder. These must be sequential as getPropertyFolderId depends on the root.
+    console.log('[upload] step 1: resolving data folder');
     const dataFolderId = await getDataFolderId(drive, session.accessToken);
+    console.log('[upload] step 1 done: dataFolderId=', dataFolderId);
+
+    console.log('[upload] step 2: resolving property folder for', metadata.propertyAddress, metadata.shortName);
     const propFolderId = await getPropertyFolderId(drive, metadata.propertyAddress, session.accessToken, metadata.shortName);
+    console.log('[upload] step 2 done: propFolderId=', propFolderId);
 
     const ext = '.' + (file.name.split('.').pop() || 'pdf');
     const fileName = buildFileName(
@@ -37,16 +40,20 @@ export async function POST(req: NextRequest) {
       ext,
       metadata.shortName
     );
+    console.log('[upload] step 3: built filename=', fileName);
 
-    // Read docs.json and convert file buffer in parallel while we have the folder IDs
+    console.log('[upload] step 4: reading buffer + existing docs.json');
     const [buffer, existingDocs] = await Promise.all([
       file.arrayBuffer().then(ab => Buffer.from(ab)),
       readJsonFile<Document[]>(drive, 'documents.json', dataFolderId, session.accessToken).then(d => d || []),
     ]);
+    console.log('[upload] step 4 done: bufferBytes=', buffer.length, 'existingDocs=', existingDocs.length);
 
+    console.log('[upload] step 5: uploading file to Drive');
     const { id: driveFileId, viewLink } = await uploadFile(
       drive, fileName, propFolderId, buffer, file.type || 'application/octet-stream'
     );
+    console.log('[upload] step 5 done: driveFileId=', driveFileId);
 
     const docs = existingDocs;
     const newDoc: Document = {
@@ -58,10 +65,18 @@ export async function POST(req: NextRequest) {
       ...metadata,
     };
     docs.push(newDoc);
+    console.log('[upload] step 6: writing documents.json with', docs.length, 'docs');
     await writeJsonFile(drive, 'documents.json', dataFolderId, docs, session.accessToken);
+    console.log('[upload] step 6 done — upload complete');
     return NextResponse.json({ data: newDoc });
   } catch (e: any) {
-    console.error('POST /api/documents/upload error:', e.message);
+    console.error('[upload] FAILED at error:', {
+      message: e?.message,
+      name: e?.name,
+      status: e?.response?.status ?? e?.status ?? e?.code,
+      cause: e?.cause ? { message: e.cause.message, code: e.cause.code } : undefined,
+      stack: e?.stack?.split('\n').slice(0, 3).join(' | '),
+    });
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

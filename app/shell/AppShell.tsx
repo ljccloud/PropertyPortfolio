@@ -255,7 +255,7 @@ export default function AppShell() {
     } else {
       setProperties(ps => ps.map(p => p.id === data.id ? { ...p, ...data } : p));
     }
-    try {
+    async function attempt() {
       const res = await fetch(isNew ? '/api/properties' : `/api/properties/${data.id}`, {
         method: isNew ? 'POST' : 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -263,6 +263,18 @@ export default function AppShell() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      return json;
+    }
+    try {
+      let json;
+      try {
+        json = await attempt();
+      } catch (firstErr: any) {
+        // Retry once on a transient cold-start failure before surfacing an error
+        console.warn('Save attempt 1 failed, retrying once:', firstErr.message);
+        await new Promise(r => setTimeout(r, 600));
+        json = await attempt();
+      }
       const saved = json.data;
       // Replace optimistic with confirmed data
       if (saved) setProperties(ps => isNew ? ps.map(p => p.id === optimisticId ? saved : p) : ps.map(p => p.id === saved.id ? saved : p));
@@ -391,11 +403,25 @@ export default function AppShell() {
   }
 
   async function uploadDoc(formData: FormData) {
-    try {
+    async function attempt(): Promise<any> {
       const res = await fetch('/api/documents/upload', { method: 'POST', body: formData });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
       if (json.error && !json.data) throw new Error(json.error);
+      return json;
+    }
+    try {
+      let json;
+      try {
+        json = await attempt();
+      } catch (firstErr: any) {
+        // Cold-start Drive calls can fail transiently on the very first attempt of a
+        // session. Rather than surface that to the user, retry once automatically
+        // after a short pause before giving up.
+        console.warn('Upload attempt 1 failed, retrying once:', firstErr.message);
+        await new Promise(r => setTimeout(r, 600));
+        json = await attempt();
+      }
       if (json.data) setDocuments(ds => [...ds, json.data]);
       showToast('Document uploaded');
     } catch (e: any) {
