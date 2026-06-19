@@ -12,9 +12,10 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delayMs = 400): P
       return await fn();
     } catch (err: any) {
       lastErr = err;
-      const status = err?.response?.status ?? err?.code;
-      // Only retry on transient errors (5xx, rate limit 429, network errors)
-      const isTransient = !status || status === 429 || status >= 500;
+      const status = err?.response?.status ?? err?.status ?? err?.code;
+      const errCode = err?.code; // may be a network error string like 'ECONNRESET'
+      const isNetworkError = typeof errCode === 'string' && /ECONNRESET|ETIMEDOUT|ENOTFOUND|EAI_AGAIN/.test(errCode);
+      const isTransient = isNetworkError || !status || status === 429 || (typeof status === 'number' && status >= 500);
       if (!isTransient || i === retries - 1) throw err;
       await new Promise(r => setTimeout(r, delayMs * Math.pow(2, i)));
     }
@@ -54,12 +55,12 @@ async function findFolders(
   drive: ReturnType<typeof google.drive>,
   query: string
 ): Promise<Array<{ id: string; name: string; parents?: string[] | null }>> {
-  const res = await drive.files.list({
+  const res = await withRetry(() => drive.files.list({
     q: query,
     fields: 'files(id, name, parents)',
     spaces: 'drive',
     pageSize: 10,
-  });
+  }));
   return (res.data.files || []).map(f => ({
     id: f.id || '',
     name: f.name || '',
@@ -90,7 +91,7 @@ async function cleanupDuplicates(
 ): Promise<string> {
   for (let i = 1; i < folders.length; i++) {
     try {
-      await drive.files.update({ fileId: folders[i].id!, requestBody: { trashed: true } });
+      await withRetry(() => drive.files.update({ fileId: folders[i].id!, requestBody: { trashed: true } }));
     } catch { /* ignore */ }
   }
   return folders[0].id!;
@@ -223,11 +224,11 @@ async function findFileId(
   const cached = _fileIdCache.get(cacheKey);
   if (cached) return cached;
 
-  const res = await drive.files.list({
+  const res = await withRetry(() => drive.files.list({
     q: `name='${fileName}' and '${folderId}' in parents and trashed=false`,
     fields: 'files(id)',
     spaces: 'drive',
-  });
+  }));
 
   const id = res.data.files?.[0]?.id || null;
   if (id && token) _fileIdCache.set(cacheKey, id);
@@ -304,5 +305,5 @@ export async function deleteFile(
   drive: ReturnType<typeof google.drive>,
   fileId: string
 ): Promise<void> {
-  await drive.files.delete({ fileId });
+  await withRetry(() => drive.files.delete({ fileId }));
 }
