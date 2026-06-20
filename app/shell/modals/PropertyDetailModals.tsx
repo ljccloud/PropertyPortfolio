@@ -21,7 +21,6 @@ export function TenantModal({ property, onSave, onClose }: TenantProps) {
     email: t?.email || '',
     phone: t?.phone || '',
     leaseStart: t?.leaseStart || '',
-    leaseEnd: t?.leaseEnd || '',
     deposit: t?.deposit?.toString() || '',
     rentPcm: t?.rentPcm?.toString() || '',
   });
@@ -38,7 +37,6 @@ export function TenantModal({ property, onSave, onClose }: TenantProps) {
           email: form.email,
           phone: form.phone,
           leaseStart: form.leaseStart,
-          leaseEnd: form.leaseEnd || undefined,
           deposit: Number(form.deposit) || 0,
           rentPcm: Number(form.rentPcm) || 0,
         }
@@ -70,14 +68,9 @@ export function TenantModal({ property, onSave, onClose }: TenantProps) {
           <input style={inputStyle} type="number" value={form.deposit} onChange={e => set('deposit', e.target.value)} />
         </Field>
       </Grid2>
-      <Grid2>
-        <Field label="Lease Start">
-          <input style={inputStyle} type="date" value={form.leaseStart} onChange={e => set('leaseStart', e.target.value)} />
-        </Field>
-        <Field label="Lease End">
-          <input style={inputStyle} type="date" value={form.leaseEnd} onChange={e => set('leaseEnd', e.target.value)} />
-        </Field>
-      </Grid2>
+      <Field label="Lease Start">
+        <input style={inputStyle} type="date" value={form.leaseStart} onChange={e => set('leaseStart', e.target.value)} />
+      </Field>
       <button onClick={handleSave} disabled={saving}
         style={{ ...btnPrimary, opacity: saving ? 0.6 : 1 }}>
         {saving ? 'Saving…' : 'Save'}
@@ -142,12 +135,19 @@ export function AgentModal({ property, onSave, onClose }: AgentProps) {
 
 interface RentHistoryProps {
   property: Property;
+  record?: any;
   onSave: (data: Partial<Property>) => Promise<void>;
   onClose: () => void;
 }
 
-export function RentHistoryModal({ property, onSave, onClose }: RentHistoryProps) {
-  const [form, setForm] = useState({ dateFrom: '', dateTo: '', amount: '', notes: '' });
+export function RentHistoryModal({ property, record, onSave, onClose }: RentHistoryProps) {
+  const isEdit = !!record;
+  const [form, setForm] = useState({
+    dateFrom: record?.dateFrom || '',
+    dateTo: record?.dateTo || '',
+    amount: record?.amount?.toString() || '',
+    notes: record?.notes || '',
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   function set(key: string, v: any) { setForm(f => ({ ...f, [key]: v })); }
@@ -158,20 +158,34 @@ export function RentHistoryModal({ property, onSave, onClose }: RentHistoryProps
     setError('');
     try {
       const existing = property.rentHistory || [];
-      await onSave({
-        rentHistory: [
-          ...existing,
-          { id: uid(), dateFrom: form.dateFrom, dateTo: form.dateTo || undefined, amount: Number(form.amount), notes: form.notes || undefined },
-        ]
-      });
+      const updated = isEdit
+        ? existing.map((r: any) => r.id === record.id
+            ? { ...r, dateFrom: form.dateFrom, dateTo: form.dateTo || undefined, amount: Number(form.amount), notes: form.notes || undefined }
+            : r)
+        : [...existing, { id: uid(), dateFrom: form.dateFrom, dateTo: form.dateTo || undefined, amount: Number(form.amount), notes: form.notes || undefined }];
+      await onSave({ rentHistory: updated });
       onClose();
     } catch (e: any) {
       setError(e?.message || 'Save failed — please try again');
     } finally { setSaving(false); }
   }
 
+  async function handleDelete() {
+    if (!isEdit) return;
+    if (!confirm('Delete this rent record?')) return;
+    setSaving(true);
+    setError('');
+    try {
+      const existing = property.rentHistory || [];
+      await onSave({ rentHistory: existing.filter((r: any) => r.id !== record.id) });
+      onClose();
+    } catch (e: any) {
+      setError(e?.message || 'Delete failed — please try again');
+    } finally { setSaving(false); }
+  }
+
   return (
-    <ModalShell title="Add Rent Record" onClose={onClose}>
+    <ModalShell title={isEdit ? 'Edit Rent Record' : 'Add Rent Record'} onClose={onClose}>
       <Field label="Amount PCM (£)">
         <input style={inputStyle} type="number" value={form.amount} onChange={e => set('amount', e.target.value)} />
       </Field>
@@ -187,10 +201,18 @@ export function RentHistoryModal({ property, onSave, onClose }: RentHistoryProps
         <input style={inputStyle} type="text" value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="e.g. Annual increase" />
       </Field>
       {error && <p style={{ color: 'var(--red)', fontSize: 13, marginBottom: 8 }}>{error}</p>}
-      <button onClick={handleSave} disabled={saving || !form.amount || !form.dateFrom}
-        style={{ ...btnPrimary, opacity: saving || !form.amount || !form.dateFrom ? 0.6 : 1 }}>
-        {saving ? 'Saving…' : 'Add Record'}
-      </button>
+      <div style={{ display: 'flex', gap: 8 }}>
+        {isEdit && (
+          <button onClick={handleDelete} disabled={saving}
+            style={{ ...btnPrimary, flex: 1, background: 'var(--red-bg)', color: 'var(--red)', opacity: saving ? 0.6 : 1 }}>
+            Delete
+          </button>
+        )}
+        <button onClick={handleSave} disabled={saving || !form.amount || !form.dateFrom}
+          style={{ ...btnPrimary, flex: 1, opacity: saving || !form.amount || !form.dateFrom ? 0.6 : 1 }}>
+          {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Record'}
+        </button>
+      </div>
     </ModalShell>
   );
 }

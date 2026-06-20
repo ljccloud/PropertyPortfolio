@@ -106,6 +106,7 @@ type ModalType =
   | { type: 'editTenant'; property: Property }
   | { type: 'editAgent'; property: Property }
   | { type: 'addRentHistory'; property: Property }
+  | { type: 'editRentHistory'; property: Property; record: any }
   | { type: 'addContact'; property: Property }
   | { type: 'editContact'; property: Property; contact: any }
   | { type: 'addRenovation'; property: Property }
@@ -741,7 +742,6 @@ export default function AppShell() {
                   <IR label="Rent PCM" value={p.tenant ? fmt(p.tenant.rentPcm) : undefined} />
                   <IR label="Deposit" value={p.tenant ? fmt(p.tenant.deposit) : undefined} />
                   <IR label="Lease Start" value={fmtDate(p.tenant?.leaseStart)} />
-                  <IR label="Lease End" value={fmtDate(p.tenant?.leaseEnd)} />
                 </div>
                 <div style={card}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: p.lettingAgent?.name ? 10 : 0 }}>
@@ -767,10 +767,11 @@ export default function AppShell() {
                   </div>
                   {p.rentHistory.length > 0 ? (
                     [...p.rentHistory].sort((a: any, b: any) => (b.dateFrom || '').localeCompare(a.dateFrom || '')).map((r: any) => (
-                      <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '80px 1fr auto', alignItems: 'baseline', gap: 8, padding: '5px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                      <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '70px 1fr auto auto', alignItems: 'baseline', gap: 6, padding: '5px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
                         <span style={{ fontWeight: 500 }}>{fmt(r.amount)}</span>
-                        <span style={{ color: 'var(--text2)' }}>{fmtDate(r.dateFrom)} → {r.dateTo ? fmtDate(r.dateTo) : 'Present'}</span>
-                        <span style={{ color: 'var(--text3)', fontSize: 12, textAlign: 'right' }}>{r.notes || ''}</span>
+                        <span style={{ color: 'var(--text2)' }}>{fmtDate(r.dateFrom)} → {r.dateTo ? fmtDate(r.dateTo) : 'Present'}{r.notes ? ` · ${r.notes}` : ''}</span>
+                        <button onClick={() => setModal({ type: 'editRentHistory', property: p, record: r })} style={{ ...btnSm, padding: '3px 8px', fontSize: 11 }}>Edit</button>
+                        <button onClick={() => { if (confirm('Delete this rent record?')) savePropertyPatch(p.id, { rentHistory: p.rentHistory.filter((x: any) => x.id !== r.id) }); }} style={{ ...btnSm, padding: '3px 8px', fontSize: 11, color: 'var(--red)' }}>✕</button>
                       </div>
                     ))
                   ) : (
@@ -783,6 +784,10 @@ export default function AppShell() {
             {detailTab === 'financials' && (
               <div>
                 <div style={card}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Financial Details</div>
+                    <button onClick={() => setModal({ type: 'editProperty', property: p })} style={btnSm}>Edit</button>
+                  </div>
                   <IR label="Purchase Price" value={p.purchasePrice ? fmt(p.purchasePrice) : undefined} />
                   <IR label="Purchase Date" value={fmtDate(p.purchaseDate)} />
                   {(p.renovations || []).length > 0 && (
@@ -802,7 +807,6 @@ export default function AppShell() {
                       </div>
                     ))}
                   </div>
-                  <button onClick={() => setModal({ type: 'editProperty', property: p })} style={{ ...btnFullSec, marginTop: 16 }}>Edit property details</button>
                 </div>
 
                 {/* Renovations */}
@@ -1196,6 +1200,7 @@ export default function AppShell() {
       {modal?.type === 'editTenant' && <TenantModal property={modal.property} onSave={patch => savePropertyPatch(modal.property.id, patch)} onClose={() => setModal(null)} />}
       {modal?.type === 'editAgent' && <AgentModal property={modal.property} onSave={patch => savePropertyPatch(modal.property.id, patch)} onClose={() => setModal(null)} />}
       {modal?.type === 'addRentHistory' && <RentHistoryModal property={modal.property} onSave={patch => savePropertyPatch(modal.property.id, patch)} onClose={() => setModal(null)} />}
+      {modal?.type === 'editRentHistory' && <RentHistoryModal property={modal.property} record={modal.record} onSave={patch => savePropertyPatch(modal.property.id, patch)} onClose={() => setModal(null)} />}
       {modal?.type === 'addContact' && <ContactModal property={modal.property} onSave={patch => savePropertyPatch(modal.property.id, patch)} onClose={() => setModal(null)} />}
       {modal?.type === 'editContact' && <ContactModal property={modal.property} contact={modal.contact} onSave={patch => savePropertyPatch(modal.property.id, patch)} onClose={() => setModal(null)} />}
       {modal?.type === 'addRenovation' && <RenovationModal property={modal.property} onSave={patch => savePropertyPatch(modal.property.id, patch)} onClose={() => setModal(null)} />}
